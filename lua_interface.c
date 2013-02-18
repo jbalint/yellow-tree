@@ -11,14 +11,14 @@
 
 static lua_State *lua_state;
 
-void lua_interface_init() {
+void lua_interface_init(jvmtiEnv *jvmti) {
   lua_state = luaL_newstate();
   if (lua_state == NULL) {
     fprintf(stderr, "Failed to initialize Lua");
     abort();
   }
   luaL_openlibs(lua_state);
-  lj_init(lua_state);
+  lj_init(lua_state, jvmti);
 }
 
 void lua_command_loop() {
