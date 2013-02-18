@@ -4,15 +4,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <assert.h>
 #include <stdarg.h>
 #ifndef _WIN32
+#include <unistd.h>
 #include <signal.h>
 #endif
 
 #include "myjni.h"
+
+#define LIST_HAS_ID
 #include "list.h"
 
 static struct agent_globals {

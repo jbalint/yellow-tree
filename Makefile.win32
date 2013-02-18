@@ -1,0 +1,13 @@
+CC = cl
+CFLAGS += /Zi
+CFLAGS += /I"%JAVA_HOME%"\include /I"%JAVA_HOME%"\include\win32
+
+.SUFFIXES: .obj .c
+.c.obj:
+	$(CC) $(CFLAGS) /c $<
+
+yt.dll: yt.obj list.obj
+	link /DLL /DEBUG /OUT:yt.dll /INCREMENTAL:NO $^
+
+clean:
+	-rm yt.obj list.obj yt.dll
