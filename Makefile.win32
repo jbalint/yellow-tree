@@ -1,13 +1,15 @@
 CC = cl
-CFLAGS += /Zi
+CFLAGS += /Zi /MTd
 CFLAGS += /I"%JAVA_HOME%"\include /I"%JAVA_HOME%"\include\win32
+CFLAGS += /I"%LUA_HOME%"\include
+LDFLAGS += /LIBPATH:"%LUA_HOME%"\lib
 
 .SUFFIXES: .obj .c
 .c.obj:
 	$(CC) $(CFLAGS) /c $<
 
-yt.dll: yt.obj list.obj
-	link /DLL /DEBUG /OUT:yt.dll /INCREMENTAL:NO $^
+yt.dll: yt.obj list.obj lua_interface.obj lua_java.obj
+	link /DLL /DEBUG /OUT:yt.dll /INCREMENTAL:NO $(LDFLAGS) $^ lua52.lib
 
 clean:
-	-rm yt.obj list.obj yt.dll
+	-rm yt.obj list.obj lua_interface.obj yt.dll

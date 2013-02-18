@@ -809,7 +809,8 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 	 when dumping first stack from in command_loop() */
   set_signal_handler();
 #endif
-  command_loop(jni);
+  lua_command_loop();
+  //command_loop(jni);
 }
 
 void JNICALL
@@ -866,6 +867,9 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
 /*   EV_ENABLE(THREAD_END); */
   /* Check that any calls to SetEventNotificationMode are valid in the
      OnLoad phase before calling here. */
+
+  lua_interface_init();
+
   return JNI_OK;
 }
 
