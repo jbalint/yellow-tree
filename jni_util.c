@@ -28,56 +28,6 @@ jvmtiError free_jvmti_refs(jvmtiEnv *jvmti, ...)
 }
 
 /*
- * XXX
- * desc1 - from app, can have M;
- * desc2 - from jvm, cannot have M;
- * TODO not tested with inner classes from the JVM
- */
-static int
-method_desc_compare(char *desc1, char *desc2)
-{
-  int cllen; /* class name length */
-  char *end;
-  char *end2;
-  while(*desc1 && *desc2)
-  {
-	if(*desc1 == 'L')
-	{
-	  if(*desc2 != 'L')
-		return 1;
-	  end = strchr(desc1, ';');
-	  if(!end) /* something is corrupt */
-		return 1;
-	  cllen = end - desc1;
-	  if(strncmp(desc1, desc2, cllen+1))
-		return 1;
-	  desc1 += cllen + 1;
-	  desc2 += cllen + 1;
-	}
-	else if(*desc1 == 'M')
-	{
-	  if(*desc2 != 'L')
-		return 1;
-	  end = strchr(desc1, ';');
-	  end2 = strchr(desc2, ';');
-	  cllen = (end - ++desc1);
-	  desc2 += (end2 - desc2) - cllen;
-	  if(strncmp(desc1, desc2, cllen + 1) || *(desc2 - 1) != '/')
-		return 1;
-	  desc1 = end + 1;
-	  desc2 = end2 + 1;
-	}
-	else if(*desc1 != *desc2)
-	  return 1;
-	desc1++;
-	desc2++;
-  }
-  if(*desc1 || *desc2)
-	return 1;
-  return 0;
-}
-
-/*
  * Lookup a method declaration. Instance method is searched first and
  * class method is tried second.
  */
