@@ -8,8 +8,8 @@ LDFLAGS += /LIBPATH:"%LUA_HOME%"\lib
 .c.obj:
 	$(CC) $(CFLAGS) /c $<
 
-yt.dll: yt.obj list.obj lua_interface.obj lua_java.obj
+yt.dll: yt.obj list.obj lua_interface.obj lua_java.obj jni_util.obj
 	link /DLL /DEBUG /OUT:yt.dll /INCREMENTAL:NO $(LDFLAGS) $^ lua52.lib
 
 clean:
-	-rm yt.obj list.obj lua_interface.obj yt.dll
+	-rm yt.obj list.obj lua_interface.obj lua_java.obj jni_util.obj yt.dll

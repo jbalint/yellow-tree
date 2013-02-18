@@ -8,6 +8,6 @@
 #include <lauxlib.h>
 
 void lj_init(lua_State *L, jvmtiEnv *jvmti);
-int lj_get_frame_count(lua_State *L);
+void lj_set_jni(JNIEnv *jni);
 
 #endif /* LUA_JAVA_H_ */

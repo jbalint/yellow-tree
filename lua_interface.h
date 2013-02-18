@@ -7,6 +7,6 @@
 #include <jvmti.h>
 
 void lua_interface_init(jvmtiEnv *jvmti);
-void lua_command_loop();
+void lua_command_loop(JNIEnv *jni);
 
 #endif /* LUA_INTERFACE_H_ */
