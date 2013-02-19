@@ -18,6 +18,9 @@ public class Test {
 			System.out.println("a is not 99");
 		}
 	}
+    public String toString() {
+	return "Hi! I'm a Test object.";
+    }
 	public static void main(String args[]) {
 		System.out.println("Jess");
 		a(32, 22, 12, 2);
