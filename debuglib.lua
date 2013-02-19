@@ -89,7 +89,7 @@ end
 function bp(method_decl, line_num)
    local b = {}
    b.method_decl = method_decl
-   b.line_num = line_num
+   b.line_num = line_num or 0
 
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
@@ -99,8 +99,8 @@ function bp(method_decl, line_num)
       end
    end
 
-   b.method = method_decl_parse(method_decl)
-   lj_set_breakpoint(b.method, b.line_num)
+   b.method_id = lookup_method_id(method_decl)
+   lj_set_breakpoint(b.method_id, b.line_num)
    table.insert(breakpoints, b)
    print("ok")
 end
@@ -155,9 +155,23 @@ end
 -- ============================================================
 -- jthread metatable
 jthread_mt = {}
-jthread_mt.__tostringUNUSED = function(t)
+jthread_mt.__tostring = function(t)
    -- TODO need the pointer value here
    return "jthread<jvmti pointer>"
+end
+
+-- ============================================================
+-- jmethod_id metatable
+jmethod_id_mt = {}
+jmethod_id_mt.__tostring = function(method_id)
+   return "jmethod_id<jni pointer>"
+end
+
+-- ============================================================
+-- Look up a method id from a method declaration
+function lookup_method_id(method_decl)
+   local method = method_decl_parse(method_decl)
+   return lj_get_method_id(method.class, method.method, method.args, method.ret)
 end
 
 -- ============================================================

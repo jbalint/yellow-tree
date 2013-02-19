@@ -28,47 +28,6 @@ jvmtiError free_jvmti_refs(jvmtiEnv *jvmti, ...)
 }
 
 /*
- * Lookup a method declaration. Instance method is searched first and
- * class method is tried second.
- */
-jmethodID method_decl_lookup(jvmtiEnv *jvmti, JNIEnv *jni,
-			     const char *class_name, const char *method_name,
-			     const char *args, const char *ret)
-{
-  /* int i; */
-  /* jint method_count; */
-  /* char *mname; */
-  /* char *msig; */
-
-  jvmtiError jerr;
-  jclass class;
-  jmethodID method_id;
-  char *sig;
-
-  /* get class */
-  class = (*jni)->FindClass(jni, class_name);
-  EXCEPTION_CLEAR(jni);
-  if(class == NULL)
-    return NULL;
-
-  /* build signature string */
-  sig = malloc(strlen(args) + strlen(ret) + 10);
-  sprintf(sig, "(%s)%s", args, ret);
-
-  /* try instance method */
-  method_id = (*jni)->GetMethodID(jni, class, method_name, sig);
-  EXCEPTION_CLEAR(jni);
-
-  /* otherwise try static method */
-  if(method_id == NULL)
-    method_id = (*jni)->GetStaticMethodID(jni, class, method_name, sig);
-  EXCEPTION_CLEAR(jni);
-  free(sig);
-
-  return method_id;
-}
-
-/*
  * Find the byte code index of a line number in a given method.
  */
 jint method_find_line_bytecode_index(jvmtiEnv *jvmti, jmethodID method_id, jint line_num)

@@ -16,9 +16,6 @@ typedef struct {
 } method_decl;
 
 jvmtiError free_jvmti_refs(jvmtiEnv *jvmti, ...);
-jmethodID method_decl_lookup(jvmtiEnv *jvmti, JNIEnv *jni,
-			     const char *class_name, const char *method_name,
-			     const char *args, const char *ret);
 jint method_find_line_bci(jvmtiEnv *jvmti, method_decl *method, jint linenum);
 
 /* utility macros to check and clear exceptions on JNI env */

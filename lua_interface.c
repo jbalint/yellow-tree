@@ -20,12 +20,14 @@ void lua_interface_init(jvmtiEnv *jvmti)
     abort();
   }
   luaL_openlibs(lua_state);
-  lj_init(lua_state, jvmti);
   if (luaL_dofile(lua_state, "debuglib.lua"))
   {
     fprintf(stderr, "Failed to load debuglib.lua: %s\n", lua_tostring(lua_state, -1));
     abort();
   }
+  /* this must be called AFTER debuglib.lua is loaded so the metatables for the Java types
+     are created */
+  lj_init(lua_state, jvmti);
 }
 
 void lua_command_loop(JNIEnv *jni)

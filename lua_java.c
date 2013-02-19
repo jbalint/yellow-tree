@@ -35,50 +35,23 @@ static void lj_check_jvmti_error(lua_State *L)
   (void)luaL_error(L, "Error %d from JVMTI: %s\n", lj_err, errmsg);
 }
 
-/**
- * Get a jmethodID from a "method" object on the top of the stack.
- */
-static jmethodID get_method_id_from_method_on_stack(lua_State *L)
-{
-  const char *class;
-  const char *method;
-  const char *args;
-  const char *ret;
-  jmethodID method_id;
-
-  lua_pushstring(L, "class");
-  lua_gettable(L, -2);
-  class = lua_tostring(L, -1);
-  lua_pop(L, 1);
-
-  lua_pushstring(L, "method");
-  lua_gettable(L, -2);
-  method = lua_tostring(L, -1);
-  lua_pop(L, 1);
-
-  lua_pushstring(L, "args");
-  lua_gettable(L, -2);
-  args = lua_tostring(L, -1);
-  lua_pop(L, 1);
-
-  lua_pushstring(L, "ret");
-  lua_gettable(L, -2);
-  ret = lua_tostring(L, -1);
-  lua_pop(L, 1);
-
-  method_id = method_decl_lookup(lj_jvmti, lj_jni, class, method, args, ret);
-  if (method_id == NULL)
-    (void)luaL_error(L, "Could not find method %s.%s(%s)%s", class, method, args, ret);
-  return method_id;
-}
-
-/* allocate a new userdata object for the jthread */
+/* allocate a new userdata object for a jthread */
 static void new_jthread(lua_State *L, jthread thread)
 {
   jthread *user_data;
   user_data = lua_newuserdata(L, sizeof(jthread));
   *user_data = thread;
   lua_getglobal(L, "jthread_mt");
+  lua_setmetatable(L, -2);
+}
+
+/* allocate a new userdata object for a jmethodID */
+static void new_jmethod_id(lua_State *L, jmethodID method_id)
+{
+  jmethodID *user_data;
+  user_data = lua_newuserdata(L, sizeof(jmethodID));
+  *user_data = method_id;
+  lua_getglobal(L, "jmethod_id_mt");
   lua_setmetatable(L, -2);
 }
 
@@ -95,12 +68,12 @@ static int lj_get_frame_count(lua_State *L)
   lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, NULL, &count);
   lj_check_jvmti_error(L);
   lua_pushinteger(L, count);
-  return 1; /* one result */
+  return 1;
 }
 
 static int lj_get_stack_frame(lua_State *L)
 {
-  int frame_num = luaL_checkint(L, 1);
+  int frame_num;
   jvmtiFrameInfo fi;
   jint count;
   jclass cls;
@@ -112,6 +85,9 @@ static int lj_get_stack_frame(lua_State *L)
   jint line_number;
   jint linescount;
   jvmtiLineNumberEntry *lines;
+
+  frame_num = luaL_checkint(L, 1);
+  lua_pop(L, 1);
 
   /* get stack frame info */
   lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, NULL, frame_num, 1, &fi, &count);
@@ -153,24 +129,24 @@ static int lj_get_stack_frame(lua_State *L)
     line_number = lines[j].line_number;
 
   lua_newtable(L);
-  lua_pushstring(L, "class");
+
   lua_pushstring(L, class_name);
-  lua_settable(L, -3);
-  lua_pushstring(L, "method");
+  lua_setfield(L, -2, "class");
+
   lua_pushstring(L, method_name);
-  lua_settable(L, -3);
+  lua_setfield(L, -2, "method");
+
+  lua_pushstring(L, source);
+  lua_setfield(L, -2, "source");
+
+  lua_pushinteger(L, line_number);
+  lua_setfield(L, -2, "line_num");
+
   if (sourcefile)
   {
-    lua_pushstring(L, "sourcefile");
     lua_pushstring(L, sourcefile);
-    lua_settable(L, -3);
+    lua_setfield(L, -2, "sourcefile");
   }
-  lua_pushstring(L, "source");
-  lua_pushstring(L, source);
-  lua_settable(L, -3);
-  lua_pushstring(L, "line_num");
-  lua_pushinteger(L, line_number);
-  lua_settable(L, -3);
 
   free_jvmti_refs(lj_jvmti, method_name, class_name, sourcefile, lines, (void *)-1);
 
@@ -183,10 +159,10 @@ static int lj_set_breakpoint(lua_State *L)
   int line_num = 0;
   jint bytecode_index = 0;
 
-  line_num = lua_tointeger(L, -1);
-  lua_pop(L, 1);
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  line_num = luaL_checkinteger(L, 2);
+  lua_pop(L, 2);
 
-  method_id = get_method_id_from_method_on_stack(L);
   bytecode_index = method_find_line_bytecode_index(lj_jvmti, method_id, line_num);
 
   lj_err = (*lj_jvmti)->SetBreakpoint(lj_jvmti, method_id, bytecode_index);
@@ -197,10 +173,13 @@ static int lj_set_breakpoint(lua_State *L)
 
 static int lj_get_local_variable_table(lua_State *L)
 {
-  jmethodID method_id = get_method_id_from_method_on_stack(L);
+  jmethodID method_id;
   jvmtiLocalVariableEntry *vars;
   jint count;
   int i;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  lua_pop(L, 1);
 
   lj_err = (*lj_jvmti)->GetLocalVariableTable(lj_jvmti, method_id, &count, &vars);
   lj_check_jvmti_error(L);
@@ -211,15 +190,15 @@ static int lj_get_local_variable_table(lua_State *L)
   {
     /* create the var entry */
     lua_newtable(L);
-    lua_pushstring(L, "name");
+
     lua_pushstring(L, vars[i].name);
-    lua_settable(L, -3);
-    lua_pushstring(L, "sig");
+    lua_setfield(L, -2, "name");
+
     lua_pushstring(L, vars[i].signature);
-    lua_settable(L, -3);
-    lua_pushstring(L, "start_location");
+    lua_setfield(L, -2, "sig");
+
     lua_pushinteger(L, vars[i].start_location);
-    lua_settable(L, -3);
+    lua_setfield(L, -2, "start_location");
 
     /* add it to the return table */
     lua_pushstring(L, vars[i].name);
@@ -243,6 +222,57 @@ static int lj_get_current_thread(lua_State *L)
   return 1;
 }
 
+static int lj_get_method_id(lua_State *L)
+{
+  jvmtiError jerr;
+  jclass class;
+  jmethodID method_id;
+  const char *class_name;
+  const char *method_name;
+  const char *args;
+  const char *ret;
+  char *sig;
+
+  class_name = luaL_checkstring(L, 1);
+  method_name = luaL_checkstring(L, 2);
+  args = luaL_checkstring(L, 3);
+  ret = luaL_checkstring(L, 4);
+  lua_pop(L, 4);
+
+  /* get class */
+  class = (*lj_jni)->FindClass(lj_jni, class_name);
+  EXCEPTION_CLEAR(lj_jni);
+  if (class == NULL)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+
+  /* build signature string */
+  sig = malloc(strlen(args) + strlen(ret) + 10);
+  sprintf(sig, "(%s)%s", args, ret);
+
+  /* try instance method */
+  method_id = (*lj_jni)->GetMethodID(lj_jni, class, method_name, sig);
+  EXCEPTION_CLEAR(lj_jni);
+
+  /* otherwise try static method */
+  if (method_id == NULL)
+    method_id = (*lj_jni)->GetStaticMethodID(lj_jni, class, method_name, sig);
+  EXCEPTION_CLEAR(lj_jni);
+  free(sig);
+
+  if (method_id == NULL)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+
+  new_jmethod_id(L, method_id);
+
+  return 1;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -252,11 +282,21 @@ static int lj_get_current_thread(lua_State *L)
 
 void lj_init(lua_State *L, jvmtiEnv *jvmti)
 {
-  lua_register(L, "lj_get_frame_count", lj_get_frame_count);
-  lua_register(L, "lj_get_stack_frame", lj_get_stack_frame);
-  lua_register(L, "lj_set_breakpoint", lj_set_breakpoint);
+  /* add C functions */
+  lua_register(L, "lj_get_frame_count",          lj_get_frame_count);
+  lua_register(L, "lj_get_stack_frame",          lj_get_stack_frame);
+  lua_register(L, "lj_set_breakpoint",           lj_set_breakpoint);
   lua_register(L, "lj_get_local_variable_table", lj_get_local_variable_table);
-  lua_register(L, "lj_get_current_thread", lj_get_current_thread);
+  lua_register(L, "lj_get_current_thread",       lj_get_current_thread);
+  lua_register(L, "lj_get_method_id",            lj_get_method_id);
+
+  /* add Java type metatables to registry for luaL_checkdata() convenience */
+  lua_getglobal(L, "jthread_mt");
+  lua_setfield(L, LUA_REGISTRYINDEX, "jthread_mt");
+  lua_getglobal(L, "jmethod_id_mt");
+  lua_setfield(L, LUA_REGISTRYINDEX, "jmethod_id_mt");
+
+  /* save jvmtiEnv pointer for global use */
   lj_jvmti = jvmti;
 }
 
