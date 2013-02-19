@@ -83,88 +83,6 @@ event_status(jvmtiEvent type)
   return event_states[type - JVMTI_MIN_EVENT_TYPE_VAL];
 }
 
-/*
- * Dump the stack of the current thread.
- */
-static void
-dump_stack(jint limit, jint depth)
-{
-  jint framecount = 0;
-  jvmtiFrameInfo *frames;
-  int i;
-  int j;
-  char *mname;
-  char *sig;
-  jclass cls;
-  char *clsname;
-  char *sourcefile = "<unknown_file>";
-  int freesf = 0;
-  jvmtiLineNumberEntry *lines;
-  int linescount = 0;
-  int line_number = -1;
-  jthread thread = NULL;
-/*   Gagent.jerr = (*Gagent.jvmti)->GetCurrentThread(Gagent.jvmti, &thread); */
-/*   check_jvmti_error(Gagent.jvmti, Gagent.jerr); */
-/*   if(!thread) */
-/* 	return; */
-  if(limit == -1)
-  {
-	Gagent.jerr = (*Gagent.jvmti)->GetFrameCount(Gagent.jvmti, thread, &limit);
-	check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  }
-  frames = malloc(sizeof(jvmtiFrameInfo) * limit);
-  Gagent.jerr = (*Gagent.jvmti)->GetStackTrace(Gagent.jvmti, thread, depth,
-											   limit, frames, &framecount);
-  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  for(i = 0; i < framecount && i < limit; ++i)
-  {
-    Gagent.jerr = (*Gagent.jvmti)->GetMethodDeclaringClass(Gagent.jvmti,
-														   frames[i].method, &cls);
-    check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-	if(!cls)
-	  continue;
-    Gagent.jerr = (*Gagent.jvmti)->GetClassSignature(Gagent.jvmti, cls, &clsname, NULL);
-    check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-    Gagent.jerr = (*Gagent.jvmti)->GetMethodName(Gagent.jvmti, frames[i].method,
-												 &mname, &sig, NULL);
-    check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-    Gagent.jerr = (*Gagent.jvmti)->GetSourceFileName(Gagent.jvmti, cls, &sourcefile);
-    if(Gagent.jerr == JVMTI_ERROR_ABSENT_INFORMATION)
-      freesf = 0;
-    else
-      check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-    Gagent.jerr = (*Gagent.jvmti)->GetLineNumberTable(Gagent.jvmti, frames[i].method,
-					    &linescount, &lines);
-    if(Gagent.jerr == JVMTI_ERROR_NATIVE_METHOD)
-    {
-      sourcefile = "<native_method>";
-      assert(!freesf);
-    }
-    else if(Gagent.jerr != JVMTI_ERROR_ABSENT_INFORMATION)
-      check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-    /* link the bytecode offset to LineNumberTable if exists */
-    for(j = 0; j < linescount; ++j)
-    {
-      if(j < (linescount - 1) &&
-		 frames[i].location < lines[j+1].start_location)
-		break;
-      else if(j == (linescount - 1))
-		break;
-    }
-    if(linescount)
-      line_number = lines[j].line_number;
-    printf("  [%d] %s.%s%s - %ld (%s:%d)\n", depth + i,
-		   clsname + 1, mname, sig, (long)frames[i].location,
-		   sourcefile, line_number);
-    free_jvmti_refs(Gagent.jvmti, mname, sig, clsname, (void *)-1);
-    if(freesf)
-      (*Gagent.jvmti)->Deallocate(Gagent.jvmti, (unsigned char *)sourcefile);
-    if(linescount)
-      (*Gagent.jvmti)->Deallocate(Gagent.jvmti, (unsigned char *)lines);
-  }
-  free(frames);
-}
-
 static void
 dump_locals(JNIEnv *jni)
 {
@@ -299,11 +217,6 @@ step_next_line(JNIEnv *env, int intomethod)
   }
   Gagent.jerr = (*Gagent.jvmti)->GetFrameCount(Gagent.jvmti, thread, &frames);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-/*   if(frames == 1) */
-/*   { */
-/* 	printf("Can't do it\n"); */
-/* 	goto end; */
-/*   } */
   Gagent.ss_destheight = frames - 1;
   EV_ENABLET(METHOD_EXIT, thread);
 end:
@@ -332,58 +245,7 @@ frame_adjust(int fradj, int absolute)
 	Gagent.depth = fradj;
   else
 	Gagent.depth += fradj;
-  dump_stack(1, Gagent.depth);
-}
-
-static void
-command_loop(JNIEnv *jni)
-{
-  char cmd[255];
-  size_t len;
-
-  Gagent.sigjni = jni; /* TODO ugly */
-  dump_stack(1, 0);
-
-  printf("yt> ");
-  while(fgets(cmd, 255, stdin))
-  {
-	len = strlen(cmd) - 1;
-	cmd[len] = 0;
-	if(!strcmp(cmd, "run") || !strcmp(cmd, "cont"))
-	  break;
-	else if(!strcmp(cmd, "threads"))
-	{
-	}
-	else if(!strcmp(cmd, "where"))
-	  dump_stack(-1, 0);
-	else if(!strcmp(cmd, "locals"))
-	  dump_locals(jni);
-	else if(!strcmp(cmd, "next"))
-	{
-	  step_next_line(jni, 0);
-	  break;
-	}
-	else if(!strcmp(cmd, "step"))
-	{
-	  step_next_line(jni, 1);
-	  break;
-	}
-	else if(!strcmp(cmd, "up"))
-	  frame_adjust(1, 0);
-	else if(!strcmp(cmd, "down"))
-	  frame_adjust(-1, 0);
-	else if(!strcmp(cmd, "frame"))
-	  dump_stack(1, Gagent.depth);
-	else if(!strncmp(cmd, "up ", 3))
-	  frame_adjust(atoi(cmd + 3), 0);
-	else if(!strncmp(cmd, "down ", 5))
-	  frame_adjust(-1*atoi(cmd + 5), 0);
-	else if(!strncmp(cmd, "frame ", 6))
-	  frame_adjust(atoi(cmd + 6), 1);
-	printf("yt> ");
-  }
-  /* reset stack depth... */
-  Gagent.depth = 0;
+  /* dump_stack(1, Gagent.depth); */
 }
 
 static void JNICALL
@@ -392,7 +254,7 @@ cbFramePop(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID mid,
 {
   assert(!"Not used");
   EV_DISABLE(FRAME_POP);
-  command_loop(jni);
+  lua_command_loop(jni);
 }
 
 static void JNICALL
@@ -404,7 +266,7 @@ cbSingleStep(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 	return;
   EV_DISABLET(SINGLE_STEP, thread);
   EV_DISABLET(METHOD_ENTRY, thread);
-  command_loop(jni);
+  lua_command_loop(jni);
 }
 
 static void JNICALL
@@ -431,7 +293,7 @@ cbMethodEntry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID mid)
 	}
 	free_jvmti_refs(Gagent.jvmti, clssig, (void *)-1);
 	/**/
-	command_loop(jni);
+	lua_command_loop(jni);
   }
   else
   {
@@ -470,7 +332,7 @@ cbBreakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 static void
 signal_handler(int sig)
 {
-  command_loop(Gagent.sigjni);
+  lua_command_loop(Gagent.sigjni);
 }
 
 static void
@@ -492,7 +354,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   EV_ENABLE(BREAKPOINT);
 #ifndef _WIN32
   /* This needs to be fixed to avoid JVMTI_ERROR_UNATTACHED_THREAD
-	 when dumping first stack from in command_loop() */
+	 when dumping first stack from in lua_command_loop() */
   set_signal_handler();
 #endif
   printf("-------====---------\n");

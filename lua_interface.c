@@ -48,4 +48,3 @@ void lua_command_loop(JNIEnv *jni)
     printf("yt> ");
   }
 }
-
