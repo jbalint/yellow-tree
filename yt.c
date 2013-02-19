@@ -93,9 +93,6 @@ dump_locals(JNIEnv *jni)
   jint lvcount;
   jint i;
 
-/*   Gagent.jerr = (*Gagent.jvmti)->GetCurrentThread(Gagent.jvmti, &thread); */
-/*   if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE) */
-/* 	return; */
   Gagent.jerr = (*Gagent.jvmti)->GetFrameLocation(Gagent.jvmti, thread,
 												  Gagent.depth, &curmid, &bci);
   if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE)
@@ -375,6 +372,7 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   jvmtiCapabilities caps;
   jvmtiEnv *jvmti;
   jint rc;
+  jint jvmtiVer;
 
   memset(&evCbs, 0, sizeof(evCbs));
   memset(&caps, 0, sizeof(caps));
@@ -406,6 +404,12 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   }
 
   Gagent.jvmti = jvmti;
+  Gagent.jerr = (*Gagent.jvmti)->GetVersionNumber(Gagent.jvmti, &jvmtiVer);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+  printf("JVMTI version %d.%d.%d\n",
+		 (jvmtiVer & JVMTI_VERSION_MASK_MAJOR) >> JVMTI_VERSION_SHIFT_MAJOR,
+		 (jvmtiVer & JVMTI_VERSION_MASK_MINOR) >> JVMTI_VERSION_SHIFT_MINOR,
+		 (jvmtiVer & JVMTI_VERSION_MASK_MICRO) >> JVMTI_VERSION_SHIFT_MICRO);
   Gagent.jerr = (*Gagent.jvmti)->AddCapabilities(Gagent.jvmti, &caps);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
   Gagent.jerr = (*Gagent.jvmti)->SetEventCallbacks(Gagent.jvmti,

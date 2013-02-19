@@ -27,25 +27,24 @@ function where()
    end
 
    for i = 0, frame_count - 1 do
-      local f = lj_get_stack_frame(i)
-      local disp = string.format("%4d: %s.%s", i, f.class, f.method)
-      if f.sourcefile then
-	 disp = disp .. "(" .. f.sourcefile
-	 if f.line_num then
-	    disp = disp .. ":" .. f.line_num
-	 end
-	 disp = disp .. ")"
-      else
-	 disp = disp .. "(" .. f.source .. ")"
-      end
-      print(disp)
+      print(string.format("%4d: %s", i, stack_frame_to_string(lj_get_stack_frame(i))))
    end
 end
 
 -- ============================================================
+-- Print local variables in current stack frame
 -- ============================================================
 function locals()
-   -- TODO see dump_locals() in yt.c
+   local frame = lj_get_stack_frame(depth)
+   local var_table = lj_get_local_variable_table(frame.method_id)
+   for k, v in pairs(var_table) do
+      local type = v.sig
+      if (#v.sig > 1) then
+	 type = "O"
+      end
+      print(string.format("%10s = %s", k,
+			  lj_get_local_variable(depth, v.slot, type)))
+   end
 end
 
 -- ============================================================
@@ -155,16 +154,38 @@ end
 -- ============================================================
 -- jthread metatable
 jthread_mt = {}
-jthread_mt.__tostring = function(t)
-   -- TODO need the pointer value here
-   return "jthread<jvmti pointer>"
+jthread_mt.__tostring = function(thread)
+   return "jthread: " .. lj_pointer_to_string(thread)
 end
 
 -- ============================================================
 -- jmethod_id metatable
 jmethod_id_mt = {}
 jmethod_id_mt.__tostring = function(method_id)
-   return "jmethod_id<jni pointer>"
+   return "jmethod_id: " .. lj_pointer_to_string(method_id)
+end
+
+-- ============================================================
+-- jobject metatable
+jobject_mt = {}
+jobject_mt.__tostring = function(object)
+   return "jobject: " .. lj_pointer_to_string(object)
+end
+
+-- ============================================================
+-- String format of stack frame
+function stack_frame_to_string(f)
+   local disp = string.format("%s.%s", f.class, f.method)
+   if f.sourcefile then
+      disp = disp .. "(" .. f.sourcefile
+      if f.line_num then
+	 disp = disp .. ":" .. f.line_num
+      end
+      disp = disp .. ")"
+   else
+      disp = disp .. "(" .. f.source .. ")"
+   end
+   return disp
 end
 
 -- ============================================================
@@ -219,3 +240,9 @@ function dump(o)
 end
 
 print("debuglib.lua - loaded with " .. _VERSION)
+
+-- internal function for testing/dev
+function x()
+   bp("Test.b(I)V")
+   bl()
+end

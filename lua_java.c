@@ -15,6 +15,9 @@ static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 static JNIEnv *lj_jni;
 
+/* marker where NULL is used as a jthread param for current thread */
+#define NULL_JTHREAD NULL
+
 static void lj_check_jvmti_error(lua_State *L)
 {
   char *errmsg = "<Unknown Error>";
@@ -55,6 +58,15 @@ static void new_jmethod_id(lua_State *L, jmethodID method_id)
   lua_setmetatable(L, -2);
 }
 
+static void new_jobject(lua_State *L, jobject object)
+{
+  jobject *user_data;
+  user_data = lua_newuserdata(L, sizeof(jobject));
+  *user_data = object;
+  lua_getglobal(L, "jobject_mt");
+  lua_setmetatable(L, -2);
+}
+
  /*  _                   ______                _   _                  */
  /* | |                 |  ____|              | | (_)                 */
  /* | |    _   _  __ _  | |__ _   _ _ __   ___| |_ _  ___  _ __  ___  */
@@ -65,7 +77,7 @@ static void new_jmethod_id(lua_State *L, jmethodID method_id)
 static int lj_get_frame_count(lua_State *L)
 {
   jint count;
-  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, NULL, &count);
+  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, NULL_JTHREAD, &count);
   lj_check_jvmti_error(L);
   lua_pushinteger(L, count);
   return 1;
@@ -90,7 +102,7 @@ static int lj_get_stack_frame(lua_State *L)
   lua_pop(L, 1);
 
   /* get stack frame info */
-  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, NULL, frame_num, 1, &fi, &count);
+  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, NULL_JTHREAD, frame_num, 1, &fi, &count);
   lj_check_jvmti_error(L);
   if (count == 0) {
     return 0;
@@ -148,6 +160,9 @@ static int lj_get_stack_frame(lua_State *L)
     lua_setfield(L, -2, "sourcefile");
   }
 
+  new_jmethod_id(L, fi.method);
+  lua_setfield(L, -2, "method_id");
+
   free_jvmti_refs(lj_jvmti, method_name, class_name, sourcefile, lines, (void *)-1);
 
   return 1;
@@ -200,9 +215,11 @@ static int lj_get_local_variable_table(lua_State *L)
     lua_pushinteger(L, vars[i].start_location);
     lua_setfield(L, -2, "start_location");
 
+    lua_pushinteger(L, vars[i].slot);
+    lua_setfield(L, -2, "slot");
+
     /* add it to the return table */
-    lua_pushstring(L, vars[i].name);
-    lua_settable(L, -3);
+    lua_setfield(L, -2, vars[i].name);
   }
 
   free_jvmti_refs(lj_jvmti, vars, (void *)-1);
@@ -273,6 +290,116 @@ static int lj_get_method_id(lua_State *L)
   return 1;
 }
 
+/**
+ * Convenience function to see if we can return a nil
+ * instead of throwing an error.
+ */
+static int local_variable_is_nil(jvmtiError err)
+{
+  if (err == JVMTI_ERROR_INVALID_SLOT)
+    return 1;
+  else if (err == JVMTI_ERROR_TYPE_MISMATCH)
+    return 1;
+  else if (err == JVMTI_ERROR_NULL_POINTER)
+    return 1;
+  else
+    return 0;
+}
+
+static int lj_get_local_variable(lua_State *L)
+{
+  jint depth;
+  jint slot;
+  const char *type;
+
+  jint val_i;
+  jlong val_j;
+  jfloat val_f;
+  jdouble val_d;
+  jobject val_o;
+
+  depth = luaL_checkinteger(L, 1);
+  slot = luaL_checkinteger(L, 2);
+  type = luaL_checkstring(L, 3);
+  lua_pop(L, 3);
+
+  if (!strcmp(type, "I")) {
+    lj_err = (*lj_jvmti)->GetLocalInt(lj_jvmti, NULL_JTHREAD, depth, slot, &val_i);
+    if (local_variable_is_nil(lj_err))
+    {
+      lua_pushnil(L);
+    }
+    else
+    {
+      lj_check_jvmti_error(L);
+      lua_pushinteger(L, val_i);
+    }
+  } else if (!strcmp(type, "J")) {
+    lj_err = (*lj_jvmti)->GetLocalLong(lj_jvmti, NULL_JTHREAD, depth, slot, &val_j);
+    if (local_variable_is_nil(lj_err))
+    {
+      lua_pushnil(L);
+    }
+    else
+    {
+      lj_check_jvmti_error(L);
+      lua_pushinteger(L, val_j);
+    }
+  } else if (!strcmp(type, "F")) {
+    lj_err = (*lj_jvmti)->GetLocalFloat(lj_jvmti, NULL_JTHREAD, depth, slot, &val_f);
+    if (local_variable_is_nil(lj_err))
+    {
+      lua_pushnil(L);
+    }
+    else
+    {
+      lj_check_jvmti_error(L);
+      lua_pushnumber(L, val_f);
+    }
+  } else if (!strcmp(type, "D")) {
+    lj_err = (*lj_jvmti)->GetLocalDouble(lj_jvmti, NULL_JTHREAD, depth, slot, &val_d);
+    if (local_variable_is_nil(lj_err))
+    {
+      lua_pushnil(L);
+    }
+    else
+    {
+      lj_check_jvmti_error(L);
+      lua_pushnumber(L, val_d);
+    }
+  } else if (!strcmp(type, "O")) { /* non-spec indicator of a jobject */
+    /* GetLocalInstance() is new to JVMTI 1.2 */
+    /* if (slot == 0) */
+    /*   lj_err = (*lj_jvmti)->GetLocalInstance(lj_jvmti, NULL_JTHREAD, depth, &val_o); */
+    /* else */
+      lj_err = (*lj_jvmti)->GetLocalObject(lj_jvmti, NULL_JTHREAD, depth, slot, &val_o);
+    if (local_variable_is_nil(lj_err))
+    {
+      lua_pushnil(L);
+    }
+    else
+    {
+      lj_check_jvmti_error(L);
+      new_jobject(L, val_o);
+    }
+  } else {
+    lua_pushnil(L);
+  }
+
+  return 1;
+}
+
+static int lj_pointer_to_string(lua_State *L)
+{
+  char buf[20];
+  const void *p;
+  p = lua_topointer(L, -1);
+  lua_pop(L, 1);
+  sprintf(buf, "%p", p);
+  lua_pushstring(L, buf);
+  return 1;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -289,6 +416,8 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_local_variable_table", lj_get_local_variable_table);
   lua_register(L, "lj_get_current_thread",       lj_get_current_thread);
   lua_register(L, "lj_get_method_id",            lj_get_method_id);
+  lua_register(L, "lj_get_local_variable",       lj_get_local_variable);
+  lua_register(L, "lj_pointer_to_string",        lj_pointer_to_string);
 
   /* add Java type metatables to registry for luaL_checkdata() convenience */
   lua_getglobal(L, "jthread_mt");
