@@ -172,6 +172,27 @@ jmethod_id_mt = {}
 jmethod_id_mt.__tostring = function(method_id)
    return "jmethod_id@" .. lj_pointer_to_string(method_id)
 end
+jmethod_id_mt.__index = function(method_id, k)
+   if k == "name" then
+      return lj_get_method_name(method_id).name
+   elseif k == "sig" then
+      return lj_get_method_name(method_id).sig
+   elseif k == "class" then
+      return lj_get_method_declaring_class(method_id)
+   elseif k == "args" or k == "ret" then
+      local sig = lj_get_method_name(method_id).sig
+      sig = string.sub(sig, 2) -- remove (
+      local args = string.match(sig, "^.*%)")
+      args = string.sub(args, 1, string.len(args) - 1)
+      local ret = string.match(sig, "%).*$")
+      ret = string.sub(ret, 2)
+      if k == "args" then
+	 return args
+      elseif k == "ret" then
+	 return ret
+      end
+   end
+end
 
 -- ============================================================
 -- jobject metatable
@@ -182,6 +203,55 @@ jobject_mt.__tostring = function(object)
 			lj_toString(object))
 end
 jobject_mt.__index = function(object, key)
+   -- until this works generically enough
+   if key == "class" then
+      local method_id = lj_get_method_id("java/lang/Object", "getClass", "", "Ljava/lang/Class;")
+      return lj_call_method(object, method_id, "L", 0)
+   end
+
+   -- search up the class hierarchy for methods
+   local methods = {}
+   local class = object.class
+   local superclass_method_id = lj_get_method_id("java/lang/Class", "getSuperclass", "", "Ljava/lang/Class;")
+   while class do
+      for idx, method_id in pairs(lj_get_class_methods(class)) do
+	 if method_id.name == key then
+	    methods[#methods+1] = method_id
+	 end
+      end
+      -- cant call class.getSuperClass() directly here
+      -- because it loops infinitely back to this method
+      class = lj_call_method(class, superclass_method_id, "L", 0)
+   end
+   if #methods > 0 then
+      return new_jcallable_method(object, methods)
+   end
+end
+
+function new_jcallable_method(object, possible_methods)
+   local jcm = {}
+   local mt = {
+      __call = function(...) return call_java_method(object, possible_methods, arg) end
+   }
+   return setmetatable(jcm, mt)
+end
+
+function call_java_method(object, possible_methods, args)
+   local method_id = nil
+   if #possible_methods == 1 then
+      method_id = possible_methods[1]
+   elseif #possible_methods > 1 then
+      print("more than one method")
+      method_id = possible_methods[1]
+   end
+   local ret = method_id.ret
+   -- prefer to return a native string ONLY for this method
+   if method_id.name == "toString" then
+      ret = "STR"
+   elseif string.sub(ret, 1, 1) == "L" then
+      ret = "L"
+   end
+   return lj_call_method(object, method_id, ret, 0)
 end
 
 -- ============================================================
@@ -256,8 +326,31 @@ end
 
 print("debuglib.lua - loaded with " .. _VERSION)
 
--- internal function for testing/dev
+-- internal function fors testing/dev
 function x()
+   xtoString = lj_get_method_id("java/lang/Object", "toString", "", "Ljava/lang/String;")
+   xtoUpperCase = lj_get_method_id("java/lang/String", "toUpperCase", "", "Ljava/lang/String;")
+   xconcat = lj_get_method_id("java/lang/String", "concat", "Ljava/lang/String;", "Ljava/lang/String;")
    bp("Test.b(I)V")
    bl()
+   print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
+end
+
+function y()
+   local s = lj_call_method(lj_get_current_thread(), xtoString, "L", 0)
+   print(s)
+   local y = lj_call_method(s, xconcat, "L", 1, "STR", ", lol")
+   print(y)
+end
+
+function run_test()
+   loadfile("test_basic.lua")()
+   loadfile("test_lua_java.lua")()
+end
+
+function z() -- throwing a lua assertion "not enough elements in the stack"
+   local x = lj_get_current_thread()
+   local y = lj_get_method_id("java/lang/Thread", "activeCount", "", "I")
+   lj_call_method(x, y, "I", 0)
+   print(lj_get_current_thread().getName())
 end

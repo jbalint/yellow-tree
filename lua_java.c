@@ -57,6 +57,22 @@ static void new_jobject(lua_State *L, jobject object)
   lua_setmetatable(L, -2);
 }
 
+static void new_string(lua_State *L, jstring string)
+{
+  const jbyte *utf_chars;
+  utf_chars = (*lj_jni)->GetStringUTFChars(lj_jni, string, NULL);
+  if (utf_chars)
+  {
+    lua_pushstring(L, utf_chars);
+    (*lj_jni)->ReleaseStringUTFChars(lj_jni, string, utf_chars);
+    EXCEPTION_CHECK(lj_jni);
+  }
+  else
+  {
+    lua_pushnil(L);
+  }
+}
+
  /*  _                   ______                _   _                  */
  /* | |                 |  ____|              | | (_)                 */
  /* | |    _   _  __ _  | |__ _   _ _ __   ___| |_ _  ___  _ __  ___  */
@@ -409,6 +425,7 @@ static int lj_get_class_methods(lua_State *L)
   jint method_count;
   jmethodID *methods;
   jclass class;
+  int i;
 
   class = *(jclass *)luaL_checkudata(L, 1, "jobject_mt");
   lua_pop(L, 1);
@@ -416,7 +433,13 @@ static int lj_get_class_methods(lua_State *L)
   lj_err = (*lj_jvmti)->GetClassMethods(lj_jvmti, class, &method_count, &methods);
   lj_check_jvmti_error(L);
 
-  /* TODO */
+  lua_newtable(L);
+
+  for (i = 0; i < method_count; ++i)
+  {
+    new_jmethod_id(L, methods[i]);
+    lua_rawseti(L, -2, i+1);
+  }
 
   free_jvmti_refs(lj_jvmti, methods, (void *)-1);
 
@@ -442,7 +465,7 @@ static int lj_find_class(lua_State *L)
 }
 
 /* first prototype of generic method calling */
-static int lj_call_method_proto1(lua_State *L)
+static int lj_call_method(lua_State *L)
 {
   jobject object;
   jmethodID method_id;
@@ -466,8 +489,8 @@ static int lj_call_method_proto1(lua_State *L)
 
   object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   method_id = *(jmethodID *)luaL_checkudata(L, 2, "jmethod_id_mt");
-  argcount = luaL_checkinteger(L, 3);
-  ret = luaL_checkstring(L, 4);
+  ret = luaL_checkstring(L, 3);
+  argcount = luaL_checkinteger(L, 4);
 
   if (!strcmp("V", ret))
     result_count = 0;
@@ -484,6 +507,10 @@ static int lj_call_method_proto1(lua_State *L)
     if (!strcmp("L", argtype))
     {
       jargs[i].l = luaL_checkudata(L, param_num++, "jobject_mt");
+    }
+    else if (!strcmp("STR", argtype)) /* TODO non-standard indicator */
+    {
+      jargs[i].l = (*lj_jni)->NewStringUTF(lj_jni, luaL_checkstring(L, param_num++));
     }
     else if (!strcmp("I", argtype))
     {
@@ -510,18 +537,30 @@ static int lj_call_method_proto1(lua_State *L)
   lua_pop(L, argcount + 4);
 
   /* call method */
-  if (!strcmp("L", ret))
+  if (!strcmp("L", ret) || !strcmp("STR", ret))
   {
     val_l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     if (val_l)
-      new_jobject(L, val_l);
+    {
+      if (!strcmp("L", ret))
+	new_jobject(L, val_l);
+      else
+	new_string(L, val_l);
+    }
     else
+    {
       lua_pushnil(L);
+    }
   }
   else if (!strcmp("V", ret))
   {
     (*lj_jni)->CallVoidMethodA(lj_jni, object, method_id, jargs);
+  }
+  else
+  {
+    /* to keep lua_happy until other return types are implemented */
+    lua_pushnil(L);
   }
 
   return result_count;
@@ -533,7 +572,6 @@ static int lj_toString(lua_State *L)
   jclass class;
   jmethodID method_id;
   jstring string;
-  const jbyte *utf_chars;
 
   object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   lua_pop(L, 1);
@@ -561,18 +599,45 @@ static int lj_toString(lua_State *L)
     return 1;
   }
 
-  utf_chars = (*lj_jni)->GetStringUTFChars(lj_jni, string, NULL);
+  new_string(L, string);
 
-  if (utf_chars)
-  {
-    lua_pushstring(L, utf_chars);
-    (*lj_jni)->ReleaseStringUTFChars(lj_jni, string, utf_chars);
-    EXCEPTION_CHECK(lj_jni);
-  }
-  else
-  {
-    lua_pushnil(L);
-  }
+  return 1;
+}
+
+static int lj_get_method_name(lua_State *L)
+{
+  jmethodID method_id;
+  char *method_name;
+  char *sig;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetMethodName(lj_jvmti, method_id, &method_name, &sig, NULL);
+  lj_check_jvmti_error(L);
+
+  lua_newtable(L);
+
+  lua_pushstring(L, method_name);
+  lua_setfield(L, -2, "name");
+  lua_pushstring(L, sig);
+  lua_setfield(L, -2, "sig");
+  
+  return 1;
+}
+
+static int lj_get_method_declaring_class(lua_State *L)
+{
+  jmethodID method_id;
+  jclass class;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetMethodDeclaringClass(lj_jvmti, method_id, &class);
+  lj_check_jvmti_error(L);
+
+  new_jobject(L, class);
 
   return 1;
 }
@@ -584,21 +649,53 @@ static int lj_toString(lua_State *L)
  /*  / ____ \| |    _| |_  */
  /* /_/    \_\_|   |_____| *//* in more ways than one... */
 
+/* Lua API -> */
+  /* int lj_get_frame_count()
+     - return number of stack frames in current thread */
+  /* {class, method, source, line_num, sourcefile, method_id, depth}
+         lj_get_stack_frame(int frame_num)
+     - get a stack frame in current thread */
+  /* void lj_set_breakpoint(jmethod_id method_id, int lin_num)
+     - set a breakpoint */
+  /* [{name, sig, start_location, slot}] lj_get_local_variable_table(jmethod_id method_id)
+     - get the local variable table for the specified method */
+  /* jthread lj_get_current_thread()
+     - get a reference to the current thread */
+  /* jmethod_id lj_get_method_id(char *class_name, char *method_name, char *args, char *ret)
+     - get a method_id */
+  /* X lj_get_local_variable(int depth, int slot, char *type)
+     - get value of a local variable */
+  /* char *lj_point_to_string(void *user_data)
+     - create a string from a user_data pointer */
+  /* [jmethod_id] lj_get_class_methods(jclass class)
+     - get methods declared on given class */
+  /* jclass lj_find_class(char *class_name)
+     - find a class given string in format pkg/Class */
+  /* lj_call_method(...) */
+  /* char *lj_toString(jobject object)
+     - call object.toString() */
+  /* {name, sig} lj_get_method_name(jmethod_id method_id)
+     - get method name and signature */
+  /* jclass lj_get_method_declaring_class(jmethod_id method_id)
+     - get class that declares the given method */
+
 void lj_init(lua_State *L, jvmtiEnv *jvmti)
 {
   /* add C functions */
-  lua_register(L, "lj_get_frame_count",          lj_get_frame_count);
-  lua_register(L, "lj_get_stack_frame",          lj_get_stack_frame);
-  lua_register(L, "lj_set_breakpoint",           lj_set_breakpoint);
-  lua_register(L, "lj_get_local_variable_table", lj_get_local_variable_table);
-  lua_register(L, "lj_get_current_thread",       lj_get_current_thread);
-  lua_register(L, "lj_get_method_id",            lj_get_method_id);
-  lua_register(L, "lj_get_local_variable",       lj_get_local_variable);
-  lua_register(L, "lj_pointer_to_string",        lj_pointer_to_string);
-  lua_register(L, "lj_get_class_methods",        lj_get_class_methods);
-  lua_register(L, "lj_find_class",               lj_find_class);
-  lua_register(L, "lj_call_method_proto1",       lj_call_method_proto1);
-  lua_register(L, "lj_toString",                 lj_toString);
+  lua_register(L, "lj_get_frame_count",            lj_get_frame_count);
+  lua_register(L, "lj_get_stack_frame",            lj_get_stack_frame);
+  lua_register(L, "lj_set_breakpoint",             lj_set_breakpoint);
+  lua_register(L, "lj_get_local_variable_table",   lj_get_local_variable_table);
+  lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
+  lua_register(L, "lj_get_method_id",              lj_get_method_id);
+  lua_register(L, "lj_get_local_variable",         lj_get_local_variable);
+  lua_register(L, "lj_pointer_to_string",          lj_pointer_to_string);
+  lua_register(L, "lj_get_class_methods",          lj_get_class_methods);
+  lua_register(L, "lj_find_class",                 lj_find_class);
+  lua_register(L, "lj_call_method",                lj_call_method);
+  lua_register(L, "lj_toString",                   lj_toString);
+  lua_register(L, "lj_get_method_name",            lj_get_method_name);
+  lua_register(L, "lj_get_method_declaring_class", lj_get_method_declaring_class);
 
   /* add Java type metatables to registry for luaL_checkdata() convenience */
   lua_getglobal(L, "jmethod_id_mt");
