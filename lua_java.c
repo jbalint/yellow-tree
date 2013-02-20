@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <classfile_constants.h>
 
 #include "myjni.h"
 #include "jni_util.h"
@@ -14,6 +15,11 @@
 static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 static JNIEnv *lj_jni;
+/* we need to keep class paired with field_id due to JVMTI API */
+typedef struct {
+  jfieldID field_id;
+  jclass class;
+} lj_field_id;
 
 /* marker where NULL is used as a jthread param for current thread */
 #define NULL_JTHREAD NULL
@@ -45,6 +51,16 @@ static void new_jmethod_id(lua_State *L, jmethodID method_id)
   user_data = lua_newuserdata(L, sizeof(jmethodID));
   *user_data = method_id;
   lua_getglobal(L, "jmethod_id_mt");
+  lua_setmetatable(L, -2);
+}
+
+static void new_jfield_id(lua_State *L, jfieldID field_id, jclass class)
+{
+  lj_field_id *user_data;
+  user_data = lua_newuserdata(L, sizeof(lj_field_id));
+  user_data->field_id = field_id;
+  user_data->class = class;
+  lua_getglobal(L, "jfield_id_mt");
   lua_setmetatable(L, -2);
 }
 
@@ -250,7 +266,6 @@ static int lj_get_current_thread(lua_State *L)
 
 static int lj_get_method_id(lua_State *L)
 {
-  jvmtiError jerr;
   jclass class;
   jmethodID method_id;
   const char *class_name;
@@ -642,6 +657,282 @@ static int lj_get_method_declaring_class(lua_State *L)
   return 1;
 }
 
+static int lj_get_field_name(lua_State *L)
+{
+  lj_field_id *field_id;
+  jclass class;
+  char *field_name;
+  char *sig;
+
+  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetFieldName(lj_jvmti, field_id->class, field_id->field_id, &field_name, &sig, NULL);
+  lj_check_jvmti_error(L);
+
+  lua_newtable(L);
+
+  lua_pushstring(L, field_name);
+  lua_setfield(L, -2, "name");
+  lua_pushstring(L, sig);
+  lua_setfield(L, -2, "sig");
+
+  return 1;
+}
+
+static int lj_get_field_declaring_class(lua_State *L)
+{
+  lj_field_id *field_id;
+  jclass class;
+
+  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetFieldDeclaringClass(lj_jvmti, field_id->class, field_id->field_id, &class);
+  lj_check_jvmti_error(L);
+
+  new_jobject(L, class);
+
+  return 1;
+}
+
+static int lj_get_field_id(lua_State *L)
+{
+  jclass class;
+  jfieldID field_id;
+  const char *class_name;
+  const char *field_name;
+  const char *sig;
+
+  class_name = luaL_checkstring(L, 1);
+  field_name = luaL_checkstring(L, 2);
+  sig = luaL_checkstring(L, 3);
+  lua_pop(L, 3);
+
+  /* get class */
+  class = (*lj_jni)->FindClass(lj_jni, class_name);
+  EXCEPTION_CLEAR(lj_jni);
+  if (class == NULL)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+
+  /* try instance field */
+  field_id = (*lj_jni)->GetFieldID(lj_jni, class, field_name, sig);
+  EXCEPTION_CLEAR(lj_jni);
+
+  /* otherwise try static field */
+  if (field_id == NULL)
+    field_id = (*lj_jni)->GetStaticFieldID(lj_jni, class, field_name, sig);
+  EXCEPTION_CLEAR(lj_jni);
+
+  if (field_id == NULL)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
+
+  new_jfield_id(L, field_id, class);
+
+  return 1;
+}
+
+static int lj_get_class_fields(lua_State *L)
+{
+  jint field_count;
+  jfieldID *fields;
+  jclass class;
+  int i;
+
+  class = *(jclass *)luaL_checkudata(L, 1, "jobject_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetClassFields(lj_jvmti, class, &field_count, &fields);
+  lj_check_jvmti_error(L);
+
+  lua_newtable(L);
+
+  for (i = 0; i < field_count; ++i)
+  {
+    new_jfield_id(L, fields[i], class);
+    lua_rawseti(L, -2, i+1);
+  }
+
+  free_jvmti_refs(lj_jvmti, fields, (void *)-1);
+
+  return 1;
+}
+
+static int lj_get_field(lua_State *L)
+{
+  jvalue val;
+  jobject object;
+  lj_field_id *field_id;
+  char *sig;
+  int is_static;
+
+  object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  field_id = (lj_field_id *)luaL_checkudata(L, 2, "jfield_id_mt");
+  luaL_checktype(L, 3, LUA_TBOOLEAN);
+  is_static = lua_toboolean(L, -1);
+  lua_pop(L, 3);
+
+  lj_err = (*lj_jvmti)->GetFieldName(lj_jvmti, field_id->class, field_id->field_id,
+				     NULL, &sig, NULL);
+  lj_check_jvmti_error(L);
+
+  if (*sig == 'L')
+  {
+    if (is_static)
+      val.l = (*lj_jni)->GetStaticObjectField(lj_jni, object, field_id->field_id);
+    else
+      val.l = (*lj_jni)->GetObjectField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    new_jobject(L, val.l);
+  }
+  else if (!strcmp(sig, "Z"))
+  {
+    if (is_static)
+      val.z = (*lj_jni)->GetStaticBooleanField(lj_jni, object, field_id->field_id);
+    else
+      val.z = (*lj_jni)->GetBooleanField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushboolean(L, val.z);
+  }
+  else if (!strcmp(sig, "B"))
+  {
+    if (is_static)
+      val.b = (*lj_jni)->GetStaticByteField(lj_jni, object, field_id->field_id);
+    else
+      val.b = (*lj_jni)->GetByteField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.b);
+  }
+  else if (!strcmp(sig, "C"))
+  {
+    if (is_static)
+      val.c = (*lj_jni)->GetStaticCharField(lj_jni, object, field_id->field_id);
+    else
+      val.c = (*lj_jni)->GetCharField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.c);
+  }
+  else if (!strcmp(sig, "S"))
+  {
+    if (is_static)
+      val.s = (*lj_jni)->GetStaticShortField(lj_jni, object, field_id->field_id);
+    else
+      val.s = (*lj_jni)->GetShortField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.s);
+  }
+  else if (!strcmp(sig, "I"))
+  {
+    if (is_static)
+      val.i = (*lj_jni)->GetStaticIntField(lj_jni, object, field_id->field_id);
+    else
+      val.i = (*lj_jni)->GetIntField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.i);
+  }
+  else if (!strcmp(sig, "J"))
+  {
+    if (is_static)
+      val.j = (*lj_jni)->GetStaticLongField(lj_jni, object, field_id->field_id);
+    else
+      val.j = (*lj_jni)->GetLongField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.j);
+  }
+  else if (!strcmp(sig, "F"))
+  {
+    if (is_static)
+      val.f = (*lj_jni)->GetStaticFloatField(lj_jni, object, field_id->field_id);
+    else
+      val.f = (*lj_jni)->GetFloatField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushnumber(L, val.f);
+  }
+  else if (!strcmp(sig, "D"))
+  {
+    if (is_static)
+      val.d = (*lj_jni)->GetStaticDoubleField(lj_jni, object, field_id->field_id);
+    else
+      val.d = (*lj_jni)->GetDoubleField(lj_jni, object, field_id->field_id);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushnumber(L, val.d);
+  }
+
+  return 1;
+}
+
+static int lj_get_field_modifiers(lua_State *L)
+{
+  jint modifiers;
+  lj_field_id *field_id;
+
+  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetFieldModifiers(lj_jvmti, field_id->class, field_id->field_id, &modifiers);
+  lj_check_jvmti_error(L);
+
+  lua_pushinteger(L, modifiers);
+
+  return 1;
+}
+
+static int lj_get_field_modifiers_table(lua_State *L)
+{
+  lua_Integer modifiers;
+
+  modifiers = luaL_checkinteger(L, 1);
+  lua_pop(L, 1);
+
+  /* do all this in C because there are no bitwise ops in Lua */
+  lua_newtable(L);
+
+  lua_pushboolean(L, modifiers & JVM_ACC_PUBLIC);
+  lua_setfield(L, -2, "public");
+  lua_pushboolean(L, modifiers & JVM_ACC_PRIVATE);
+  lua_setfield(L, -2, "private");
+  lua_pushboolean(L, modifiers & JVM_ACC_PROTECTED);
+  lua_setfield(L, -2, "protected");
+  lua_pushboolean(L, modifiers & JVM_ACC_STATIC);
+  lua_setfield(L, -2, "static");
+  lua_pushboolean(L, modifiers & JVM_ACC_FINAL);
+  lua_setfield(L, -2, "final");
+  lua_pushboolean(L, modifiers & JVM_ACC_SYNCHRONIZED);
+  lua_setfield(L, -2, "synchronized");
+  lua_pushboolean(L, modifiers & JVM_ACC_SUPER);
+  lua_setfield(L, -2, "super");
+  lua_pushboolean(L, modifiers & JVM_ACC_VOLATILE);
+  lua_setfield(L, -2, "volatile");
+  lua_pushboolean(L, modifiers & JVM_ACC_BRIDGE);
+  lua_setfield(L, -2, "bridge");
+  lua_pushboolean(L, modifiers & JVM_ACC_TRANSIENT);
+  lua_setfield(L, -2, "transient");
+  lua_pushboolean(L, modifiers & JVM_ACC_VARARGS);
+  lua_setfield(L, -2, "varargs");
+  lua_pushboolean(L, modifiers & JVM_ACC_NATIVE);
+  lua_setfield(L, -2, "native");
+  lua_pushboolean(L, modifiers & JVM_ACC_INTERFACE);
+  lua_setfield(L, -2, "interface");
+  lua_pushboolean(L, modifiers & JVM_ACC_ABSTRACT);
+  lua_setfield(L, -2, "abstract");
+  lua_pushboolean(L, modifiers & JVM_ACC_STRICT);
+  lua_setfield(L, -2, "strict");
+  lua_pushboolean(L, modifiers & JVM_ACC_SYNTHETIC);
+  lua_setfield(L, -2, "synthetic");
+  lua_pushboolean(L, modifiers & JVM_ACC_ANNOTATION);
+  lua_setfield(L, -2, "annotation");
+  lua_pushboolean(L, modifiers & JVM_ACC_ENUM);
+  lua_setfield(L, -2, "enum");
+
+  return 1;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -678,6 +969,13 @@ static int lj_get_method_declaring_class(lua_State *L)
      - get method name and signature */
   /* jclass lj_get_method_declaring_class(jmethod_id method_id)
      - get class that declares the given method */
+  /* lj_get_field_name */
+  /* lj_get_field_declaring_class */
+  /* lj_get_field_id */
+  /* lj_get_class_fields */
+  /* lj_get_field */
+  /* lj_get_field_modifiers */
+  /* lj_get_field_modifiers_table */
 
 void lj_init(lua_State *L, jvmtiEnv *jvmti)
 {
@@ -696,10 +994,19 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_toString",                   lj_toString);
   lua_register(L, "lj_get_method_name",            lj_get_method_name);
   lua_register(L, "lj_get_method_declaring_class", lj_get_method_declaring_class);
+  lua_register(L, "lj_get_field_name",             lj_get_field_name);
+  lua_register(L, "lj_get_field_declaring_class",  lj_get_field_declaring_class);
+  lua_register(L, "lj_get_field_id",               lj_get_field_id);
+  lua_register(L, "lj_get_class_fields",           lj_get_class_fields);
+  lua_register(L, "lj_get_field",                  lj_get_field);
+  lua_register(L, "lj_get_field_modifiers",        lj_get_field_modifiers);
+  lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
 
   /* add Java type metatables to registry for luaL_checkdata() convenience */
   lua_getglobal(L, "jmethod_id_mt");
   lua_setfield(L, LUA_REGISTRYINDEX, "jmethod_id_mt");
+  lua_getglobal(L, "jfield_id_mt");
+  lua_setfield(L, LUA_REGISTRYINDEX, "jfield_id_mt");
   lua_getglobal(L, "jobject_mt");
   lua_setfield(L, LUA_REGISTRYINDEX, "jobject_mt");
 

@@ -6,6 +6,10 @@ Status
 ======
 As of February 2013, Yellow Tree is currently build on Windows with GNU Make and the Visual Studio Express 2008 toolchain. It has in the past ran on Linux, but is not currently run on Linux.
 
+Limitations
+===========
+* Array types are almost universally unsupported in the JNI code
+
 Installation
 ============
 * Get Lua (Lua source can be built on Windows by writing a quick Makefile)
