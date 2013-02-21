@@ -28,6 +28,7 @@ static struct agent_globals {
 	 1. last JNI could be from a thread that has since exited
   */
   JNIEnv *sigjni;
+  jrawMonitorID exec_monitor;
 } Gagent;
 
 static jvmtiError
@@ -344,9 +345,19 @@ set_signal_handler()
 }
 #endif /* !_WIN32 */
 
+static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
+{
+  lua_command_loop(jni);
+}
+
 static void JNICALL
 cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 {
+  jclass thread_class;
+  jmethodID thread_ctor;
+  jthread agent_thread;
+  jstring thread_name;
+
   /* Enable event notifications (these must be set in live phase) */
   EV_ENABLE(BREAKPOINT);
 #ifndef _WIN32
@@ -357,7 +368,27 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   printf("-------====---------\n");
   printf("Yellow Tree Debugger\n");
   printf("-------====---------\n");
-  lua_command_loop(jni);
+
+  /* start and run the debugger command loop */
+  thread_class = (*jni)->FindClass(jni, "java/lang/Thread");
+  assert(thread_class);
+  thread_ctor = (*jni)->GetMethodID(jni, thread_class, "<init>", "(Ljava/lang/String;)V");
+  assert(thread_ctor);
+  thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Lua Command Loop");
+  assert(thread_name);
+  agent_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, thread_name);
+  assert(agent_thread);
+  (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, agent_thread, command_loop_thread,
+								  NULL, JVMTI_THREAD_NORM_PRIORITY);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+
+  /* wait for debugger to begin execution */
+  (*Gagent.jvmti)->RawMonitorEnter(Gagent.jvmti, Gagent.exec_monitor);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+  (*Gagent.jvmti)->RawMonitorWait(Gagent.jvmti, Gagent.exec_monitor, 0);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+  (*Gagent.jvmti)->RawMonitorExit(Gagent.jvmti, Gagent.exec_monitor);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 }
 
 void JNICALL
@@ -422,7 +453,11 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   /* Check that any calls to SetEventNotificationMode are valid in the
      OnLoad phase before calling here. */
 
-  lua_interface_init();
+  /* create raw monitor used for sync with the Lua environment */
+  (*Gagent.jvmti)->CreateRawMonitor(Gagent.jvmti, "yellow_tree_lua", &Gagent.exec_monitor);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+
+  lua_interface_init(Gagent.jvmti, Gagent.exec_monitor);
 
   return JNI_OK;
 }

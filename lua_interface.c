@@ -11,7 +11,7 @@
 
 static lua_State *lua_state;
 
-void lua_interface_init(jvmtiEnv *jvmti)
+void lua_interface_init(jvmtiEnv *jvmti, jrawMonitorID mon)
 {
   lua_state = luaL_newstate();
   if (lua_state == NULL)
@@ -28,25 +28,11 @@ void lua_interface_init(jvmtiEnv *jvmti)
   /* this must be called AFTER debuglib.lua is loaded so the metatables for the Java types
      are created */
   lj_init(lua_state, jvmti);
+  lj_set_jvm_exec_monitor(mon);
 }
 
 void lua_command_loop(JNIEnv *jni)
 {
-  char cmd[255];
-  size_t len;
-
   lj_set_jni(jni);
-
-  printf("yt> ");
-  while(fgets(cmd, 255, stdin))
-  {
-    len = strlen(cmd) - 1;
-    cmd[len] = 0;
-    if (!strcmp(cmd, "g"))
-      return;
-    if (luaL_dostring(lua_state, cmd)) {
-      printf("%s\n", lua_tostring(lua_state, -1));
-    }
-    printf("yt> ");
-  }
+  luaL_dostring(lua_state, "command_loop()");
 }

@@ -15,6 +15,10 @@
 static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 static JNIEnv *lj_jni;
+/* this is used to signal the JVM to resume execution after
+   a breakpoint (etc) callback
+   it's also used to initially execute the program */
+static jrawMonitorID exec_monitor;
 /* we need to keep class paired with field_id due to JVMTI API */
 typedef struct {
   jfieldID field_id;
@@ -933,6 +937,19 @@ static int lj_get_field_modifiers_table(lua_State *L)
   return 1;
 }
 
+static int lj_resume_jvm_and_wait(lua_State *L)
+{
+  lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, exec_monitor);
+  lj_check_jvmti_error(L);
+  lj_err = (*lj_jvmti)->RawMonitorNotify(lj_jvmti, exec_monitor);
+  lj_check_jvmti_error(L);
+  lj_err = (*lj_jvmti)->RawMonitorWait(lj_jvmti, exec_monitor, 0);
+  lj_check_jvmti_error(L);
+  lj_err = (*lj_jvmti)->RawMonitorExit(lj_jvmti, exec_monitor);
+  lj_check_jvmti_error(L);
+  return 0;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -1001,6 +1018,7 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_field",                  lj_get_field);
   lua_register(L, "lj_get_field_modifiers",        lj_get_field_modifiers);
   lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
+  lua_register(L, "lj_resume_jvm_and_wait",        lj_resume_jvm_and_wait);
 
   /* add Java type metatables to registry for luaL_checkdata() convenience */
   lua_getglobal(L, "jmethod_id_mt");
@@ -1016,5 +1034,11 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
 
 void lj_set_jni(JNIEnv *jni)
 {
+  assert(jni);
   lj_jni = jni;
+}
+
+void lj_set_jvm_exec_monitor(jrawMonitorID mon)
+{
+  exec_monitor = mon;
 }

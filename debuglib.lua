@@ -16,6 +16,35 @@ depth = 0
 breakpoints = {}
 
 -- ============================================================
+-- Main command loop
+-- ============================================================
+function command_loop()
+   while true do
+      io.write("yt> ")
+      local cmd = io.read("*line")
+      local chunk = loadstring(cmd)
+      local success, m2 = pcall(chunk)
+      if not success then
+	 print("Error: " .. m2)
+      end
+   end
+end
+
+-- ============================================================
+-- Continue execution
+-- ============================================================
+function g()
+   lj_resume_jvm_and_wait()
+end
+
+-- ============================================================
+-- Help
+-- ============================================================
+function help()
+   print("Help is on the way...")
+end
+
+-- ============================================================
 -- Print stack trace
 -- ============================================================
 function where()
@@ -170,7 +199,11 @@ end
 -- jmethod_id metatable
 jmethod_id_mt = {}
 jmethod_id_mt.__tostring = function(method_id)
-   return string.format("jmethod_id@%s", lj_pointer_to_string(method_id))
+   return string.format("jmethod_id@%s %s.%s%s",
+			lj_pointer_to_string(method_id),
+			method_id.class.getName().toString(),
+			method_id.name,
+			method_id.sig)
 end
 jmethod_id_mt.__index = function(method_id, k)
    if k == "name" then
