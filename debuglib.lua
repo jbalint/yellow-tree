@@ -195,6 +195,9 @@ end
  -- | |__| |  \  /  | |  | |  | |   _| |_  | |___| (_| | | | |_) | (_| | (__|   <\__ \
  --  \____/    \/   |_|  |_|  |_|  |_____|  \_____\__,_|_|_|_.__/ \__,_|\___|_|\_\___/
 
+-- ============================================================
+-- Handle the callback when a breakpoint is hit
+-- ============================================================
 function cb_breakpoint(thread, method_id, location)
    return true
 end
@@ -295,35 +298,8 @@ function x()
    print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
 end
 
-function y()
-   local s = lj_call_method(lj_get_current_thread(), xtoString, "L", 0)
-   print(s)
-   local y = lj_call_method(s, xconcat, "L", 1, "STR", ", lol")
-   print(y)
-end
-
-function run_test()
-   loadfile("test_basic.lua")()
-   loadfile("test_lua_java.lua")()
-end
-
-function z() -- throwing a lua assertion "not enough elements in the stack"
-   local x = lj_get_current_thread()
-   local y = lj_get_method_id("java/lang/Thread", "activeCount", "", "I")
-   lj_call_method(x, y, "I", 0)
-   print(lj_get_current_thread().getName())
-end
-
-function z1()
-   local x = lj_get_current_thread()
-   local y = lj_get_field_id("java/lang/Thread", "tid", "J")
-   print(lj_get_field(x, y, false))
-   local z = lj_get_field_id("java/lang/Thread", "MIN_PRIORITY", "I")
-   print(z)
-   print(dump(x.fields))
-   print(dump(lj_get_field_modifiers_table(lj_get_field_modifiers(z))))
-   print(lj_get_field(x.class, z, true))
-   print(x.MIN_PRIORITY)
-   print(x.MAX_PRIORITY)
-   print(x.me)
+function run_tests()
+   loadfile("test/test_basic.lua")()
+   loadfile("test/test_lua_java.lua")()
+   loadfile("test/test_java_bridge.lua")()
 end

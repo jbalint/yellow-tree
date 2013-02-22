@@ -22,6 +22,11 @@ jmethod_id_mt.__tostring = function(method_id)
 			method_id.name,
 			method_id.sig)
 end
+jmethod_id_mt.__eq = function(m1, m2)
+   return m1.name == m2.name and
+      m1.sig == m2.sig and
+      m1.class == m2.class
+end
 jmethod_id_mt.__index = function(method_id, k)
    if k == "name" then
       return lj_get_method_name(method_id).name
@@ -54,6 +59,11 @@ jfield_id_mt.__tostring = function(field_id)
 			field_id.name,
 		        field_id.sig)
 end
+jfield_id_mt.__eq = function(f1, f2)
+   return m1.name == m2.name and
+      m1.sig == m2.sig and
+      m1.class == m2.class
+end
 jfield_id_mt.__index = function(field_id, k)
    if k == "name" then
       return lj_get_field_name(field_id).name
@@ -73,6 +83,14 @@ jobject_mt.__tostring = function(object)
    return string.format("jobject@%s: %s",
 			lj_pointer_to_string(object),
 			lj_toString(object))
+end
+jobject_mt.__eq = function(o1, o2)
+   -- only handle class comparison
+   if lj_toString(o1.class) == "class java.lang.Class" then
+      return lj_toString(o1) == lj_toString(o2)
+   end
+
+   return false
 end
 jobject_mt.__index = function(object, key)
    -- we cannot use anything that would result in calling this function recursively
@@ -106,8 +124,9 @@ jobject_mt.__index = function(object, key)
    end
 end
 
+-- ============================================================
+-- search up the class hierarchy for methods called `name'
 function find_methods(class, name)
-   -- search up the class hierarchy for methods
    local methods = {}
    local superclass_method_id = lj_get_method_id("java/lang/Class", "getSuperclass", "", "Ljava/lang/Class;")
    while class do
@@ -122,6 +141,8 @@ function find_methods(class, name)
    return methods
 end
 
+-- ============================================================
+-- search up the class hierarchy for the first field called `name'
 function find_field(class, name)
    local superclass_method_id = lj_get_method_id("java/lang/Class", "getSuperclass", "", "Ljava/lang/Class;")
    while class do
@@ -135,6 +156,9 @@ function find_field(class, name)
    return nil
 end
 
+-- ============================================================
+-- create a callable closure to call one of the
+-- `possible_methods' on `object'
 function new_jcallable_method(object, possible_methods)
    local jcm = {}
    local mt = {
@@ -143,6 +167,9 @@ function new_jcallable_method(object, possible_methods)
    return setmetatable(jcm, mt)
 end
 
+-- ============================================================
+-- perform the actual method call. this will match the `args'
+-- to one of the `possible_methods'
 function call_java_method(object, possible_methods, args)
    local method_id = nil
    if #possible_methods == 1 then
