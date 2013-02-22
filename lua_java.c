@@ -15,6 +15,8 @@
 static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 static JNIEnv *lj_jni;
+/* needed to have a lua state at jvmti callback */
+static lua_State *lj_L;
 /* this is used to signal the JVM to resume execution after
    a breakpoint (etc) callback
    it's also used to initially execute the program */
@@ -24,6 +26,10 @@ typedef struct {
   jfieldID field_id;
   jclass class;
 } lj_field_id;
+/* function references for callback functions */
+static struct {
+  int cb_breakpoint_ref;
+} lj_jvmti_callbacks;
 
 /* marker where NULL is used as a jthread param for current thread */
 #define NULL_JTHREAD NULL
@@ -54,7 +60,7 @@ static void new_jmethod_id(lua_State *L, jmethodID method_id)
   jmethodID *user_data;
   user_data = lua_newuserdata(L, sizeof(jmethodID));
   *user_data = method_id;
-  lua_getglobal(L, "jmethod_id_mt");
+  lua_getfield(L, LUA_REGISTRYINDEX, "jmethod_id_mt");
   lua_setmetatable(L, -2);
 }
 
@@ -64,7 +70,7 @@ static void new_jfield_id(lua_State *L, jfieldID field_id, jclass class)
   user_data = lua_newuserdata(L, sizeof(lj_field_id));
   user_data->field_id = field_id;
   user_data->class = class;
-  lua_getglobal(L, "jfield_id_mt");
+  lua_getfield(L, LUA_REGISTRYINDEX, "jfield_id_mt");
   lua_setmetatable(L, -2);
 }
 
@@ -73,7 +79,7 @@ static void new_jobject(lua_State *L, jobject object)
   jobject *user_data;
   user_data = lua_newuserdata(L, sizeof(jobject));
   *user_data = object;
-  lua_getglobal(L, "jobject_mt");
+  lua_getfield(L, LUA_REGISTRYINDEX, "jobject_mt");
   lua_setmetatable(L, -2);
 }
 
@@ -93,6 +99,30 @@ static void new_string(lua_State *L, jstring string)
   }
 }
 
+static jobject get_current_java_thread()
+{
+  jclass thread_class;
+  jmethodID getCurrentThread_method_id;
+  jobject current_thread;
+
+  thread_class = (*lj_jni)->FindClass(lj_jni, "java/lang/Thread");
+  EXCEPTION_CHECK(lj_jni);
+  assert(thread_class);
+
+  getCurrentThread_method_id = (*lj_jni)->GetStaticMethodID(lj_jni, thread_class,
+							    "currentThread",
+							    "()Ljava/lang/Thread;");
+  EXCEPTION_CHECK(lj_jni);
+  assert(getCurrentThread_method_id);
+
+  current_thread = (*lj_jni)->CallStaticObjectMethod(lj_jni, thread_class,
+						     getCurrentThread_method_id);
+  EXCEPTION_CHECK(lj_jni);
+  assert(current_thread);
+
+  return current_thread;
+}
+
  /*  _                   ______                _   _                  */
  /* | |                 |  ____|              | | (_)                 */
  /* | |    _   _  __ _  | |__ _   _ _ __   ___| |_ _  ___  _ __  ___  */
@@ -103,7 +133,7 @@ static void new_string(lua_State *L, jstring string)
 static int lj_get_frame_count(lua_State *L)
 {
   jint count;
-  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, NULL_JTHREAD, &count);
+  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, get_current_java_thread(), &count);
   lj_check_jvmti_error(L);
   lua_pushinteger(L, count);
   return 1;
@@ -128,7 +158,7 @@ static int lj_get_stack_frame(lua_State *L)
   lua_pop(L, 1);
 
   /* get stack frame info */
-  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, NULL_JTHREAD, frame_num, 1, &fi, &count);
+  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, get_current_java_thread(), frame_num, 1, &fi, &count);
   lj_check_jvmti_error(L);
   if (count == 0) {
     return 0;
@@ -260,8 +290,10 @@ static int lj_get_current_thread(lua_State *L)
 {
   jthread thread;
 
-  lj_err = (*lj_jvmti)->GetCurrentThread(lj_jvmti, &thread);
-  lj_check_jvmti_error(L);
+  /* JVMTI seems to be returning the agent thread, even though it says it won't */
+  /* lj_err = (*lj_jvmti)->GetCurrentThread(lj_jvmti, &thread); */
+  /* lj_check_jvmti_error(L); */
+  thread = get_current_java_thread();
 
   new_jobject(L, thread);
 
@@ -353,7 +385,8 @@ static int lj_get_local_variable(lua_State *L)
 
   if (!strcmp(type, "I"))
   {
-    lj_err = (*lj_jvmti)->GetLocalInt(lj_jvmti, NULL_JTHREAD, depth, slot, &val_i);
+    lj_err = (*lj_jvmti)->GetLocalInt(lj_jvmti, get_current_java_thread(),
+				      depth, slot, &val_i);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -366,7 +399,8 @@ static int lj_get_local_variable(lua_State *L)
   }
   else if (!strcmp(type, "J"))
   {
-    lj_err = (*lj_jvmti)->GetLocalLong(lj_jvmti, NULL_JTHREAD, depth, slot, &val_j);
+    lj_err = (*lj_jvmti)->GetLocalLong(lj_jvmti, get_current_java_thread(),
+				       depth, slot, &val_j);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -379,7 +413,8 @@ static int lj_get_local_variable(lua_State *L)
   }
   else if (!strcmp(type, "F"))
   {
-    lj_err = (*lj_jvmti)->GetLocalFloat(lj_jvmti, NULL_JTHREAD, depth, slot, &val_f);
+    lj_err = (*lj_jvmti)->GetLocalFloat(lj_jvmti, get_current_java_thread(),
+					depth, slot, &val_f);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -392,7 +427,8 @@ static int lj_get_local_variable(lua_State *L)
   }
   else if (!strcmp(type, "D"))
   {
-    lj_err = (*lj_jvmti)->GetLocalDouble(lj_jvmti, NULL_JTHREAD, depth, slot, &val_d);
+    lj_err = (*lj_jvmti)->GetLocalDouble(lj_jvmti, get_current_java_thread(),
+					 depth, slot, &val_d);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -407,9 +443,10 @@ static int lj_get_local_variable(lua_State *L)
   {
     /* GetLocalInstance() is new to JVMTI 1.2 */
     /* if (slot == 0) */
-    /*   lj_err = (*lj_jvmti)->GetLocalInstance(lj_jvmti, NULL_JTHREAD, depth, &val_l); */
+    /*   lj_err = (*lj_jvmti)->GetLocalInstance(lj_jvmti, get_current_java_thread(), depth, &val_l); */
     /* else */
-      lj_err = (*lj_jvmti)->GetLocalObject(lj_jvmti, NULL_JTHREAD, depth, slot, &val_l);
+    lj_err = (*lj_jvmti)->GetLocalObject(lj_jvmti, get_current_java_thread(),
+					 depth, slot, &val_l);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -950,6 +987,66 @@ static int lj_resume_jvm_and_wait(lua_State *L)
   return 0;
 }
 
+static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
+				 jmethodID mid, jlocation location)
+{
+  int ref = lj_jvmti_callbacks.cb_breakpoint_ref;
+  lua_State *L = lj_L;
+  int break_to_command_loop;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  lj_set_jni(jni);
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, mid);
+  lua_pushinteger(L, location);
+  lua_call(L, 3, 1);
+  luaL_checktype(L, 1, LUA_TBOOLEAN);
+  break_to_command_loop = lua_toboolean(L, -1);
+  lua_pop(L, 1);
+  if (break_to_command_loop)
+  {
+    /* semantically makes sense, but method name doesn't match...
+       we notify() the command loop which is waiting here, then
+       wait for the command loop to notify() us back and resume
+       execution */
+    lj_resume_jvm_and_wait(L);
+  }
+}
+
+static int lj_set_jvmti_callback(lua_State *L)
+{
+  const char *callback;
+  int ref;
+  jvmtiEventCallbacks *evCbs;
+
+  callback = luaL_checkstring(L, 1);
+  luaL_checktype(L, 2, LUA_TFUNCTION);
+  ref = luaL_ref(L, LUA_REGISTRYINDEX); /* this pops.. */
+  lua_pop(L, 1);
+
+  evCbs = get_jvmti_callbacks();
+
+  /* TODO there might(...?) be a better way to map all these callbacks */
+  if (!strcmp(callback, "breakpoint"))
+  {
+    evCbs->Breakpoint = cb_breakpoint;
+    lj_jvmti_callbacks.cb_breakpoint_ref = ref;
+  }
+  else
+  {
+    (void)luaL_error(L, "Unknown callback '%s'\n", callback);
+  }
+
+  lj_err = (*lj_jvmti)->SetEventCallbacks(lj_jvmti, evCbs, sizeof(jvmtiEventCallbacks));
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -996,6 +1093,8 @@ static int lj_resume_jvm_and_wait(lua_State *L)
 
 void lj_init(lua_State *L, jvmtiEnv *jvmti)
 {
+  lj_L = L;
+
   /* add C functions */
   lua_register(L, "lj_get_frame_count",            lj_get_frame_count);
   lua_register(L, "lj_get_stack_frame",            lj_get_stack_frame);
@@ -1020,13 +1119,20 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
   lua_register(L, "lj_resume_jvm_and_wait",        lj_resume_jvm_and_wait);
 
+  lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
+
   /* add Java type metatables to registry for luaL_checkdata() convenience */
-  lua_getglobal(L, "jmethod_id_mt");
+  lua_getglobal(L, "java_bridge");
+  lua_getfield(L, -1, "jmethod_id_mt");
   lua_setfield(L, LUA_REGISTRYINDEX, "jmethod_id_mt");
-  lua_getglobal(L, "jfield_id_mt");
+  lua_getfield(L, -1, "jfield_id_mt");
   lua_setfield(L, LUA_REGISTRYINDEX, "jfield_id_mt");
-  lua_getglobal(L, "jobject_mt");
+  lua_getfield(L, -1, "jobject_mt");
   lua_setfield(L, LUA_REGISTRYINDEX, "jobject_mt");
+  lua_pop(L, 1); /* java_bridge */
+
+  /* clear callback refs */
+  lj_jvmti_callbacks.cb_breakpoint_ref = LUA_NOREF;
 
   /* save jvmtiEnv pointer for global use */
   lj_jvmti = jvmti;

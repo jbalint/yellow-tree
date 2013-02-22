@@ -318,14 +318,6 @@ cbMethodExit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID mid,
   EV_ENABLET(METHOD_ENTRY, thread);
 }
 
-static void JNICALL
-cbBreakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
-			 jmethodID mid, jlocation location)
-{
-  printf("Breakpoint hit\n");
-  lua_command_loop(jni);
-}
-
 #ifndef _WIN32
 static void
 signal_handler(int sig)
@@ -399,24 +391,19 @@ cbVMDeath(jvmtiEnv *jvmti, JNIEnv *jni)
 JNIEXPORT jint JNICALL
 Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
 {
-  jvmtiEventCallbacks evCbs;
+  jvmtiEventCallbacks *evCbs;
   jvmtiCapabilities caps;
   jvmtiEnv *jvmti;
   jint rc;
   jint jvmtiVer;
 
-  memset(&evCbs, 0, sizeof(evCbs));
+  evCbs = get_jvmti_callbacks();
+
+  memset(evCbs, 0, sizeof(evCbs));
   memset(&caps, 0, sizeof(caps));
 
-  evCbs.VMInit = cbVMInit;
-  evCbs.VMDeath = cbVMDeath;
-  evCbs.Breakpoint = cbBreakpoint;
-  evCbs.MethodEntry = cbMethodEntry;
-  evCbs.MethodExit = cbMethodExit;
-/*   evCbs.ThreadStart = cbThreadStart; */
-/*   evCbs.ThreadEnd = cbThreadEnd; */
-  evCbs.SingleStep = cbSingleStep;
-  evCbs.FramePop = cbFramePop;
+  evCbs->VMInit = cbVMInit;
+  evCbs->VMDeath = cbVMDeath;
   caps.can_generate_breakpoint_events = 1;
   caps.can_generate_method_entry_events = 1;
   caps.can_generate_method_exit_events = 1;
@@ -444,7 +431,7 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   Gagent.jerr = (*Gagent.jvmti)->AddCapabilities(Gagent.jvmti, &caps);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
   Gagent.jerr = (*Gagent.jvmti)->SetEventCallbacks(Gagent.jvmti,
-												   &evCbs, sizeof(evCbs));
+												   evCbs, sizeof(jvmtiEventCallbacks));
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
   EV_ENABLE(VM_INIT);
   EV_ENABLE(VM_DEATH);

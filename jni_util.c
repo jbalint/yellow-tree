@@ -5,6 +5,12 @@
 #include <string.h>
 #include <assert.h>
 
+/* Shared instance between all JVMTI users -
+   because the JVMTI API doesn't have GetEventCallbacks(),
+   we need to allow adding/changing callbacks without knowing about
+   other code. */
+static jvmtiEventCallbacks jvmti_callbacks;
+
 /*
  * Free a set of JVMTI references. Pass (void *)-1 as the last parameter.
  * Be *sure* to cast the last argument to a pointer.
@@ -52,4 +58,9 @@ jint method_find_line_bytecode_index(jvmtiEnv *jvmti, jmethodID method_id, jint 
   }
   (*jvmti)->Deallocate(jvmti, (unsigned char *)lines);
   return bytecode_index;
+}
+
+jvmtiEventCallbacks *get_jvmti_callbacks()
+{
+  return &jvmti_callbacks;
 }
