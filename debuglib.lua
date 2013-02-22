@@ -21,6 +21,7 @@ breakpoints = {}
 function command_loop()
    while true do
       io.write("yt> ")
+      io.flush()
       local cmd = io.read("*line")
       local chunk = load(cmd)
       local success, m2 = pcall(chunk)
@@ -197,6 +198,7 @@ end
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
 function cb_breakpoint(thread, method_id, location)
+   depth = 0
    local bp
    for idx, v in pairs(breakpoints) do
       if v.method_id == method_id then
@@ -204,7 +206,7 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
-   print(string.format("bp hit %s", bp))
+   print(stack_frame_to_string(lj_get_stack_frame(0)))
    return true
 end
 
@@ -242,19 +244,28 @@ end
 -- ============================================================
 -- String format of stack frame
 function stack_frame_to_string(f)
-   local disp = string.format("%4d: %s.%s", f.depth, f.class, f.method)
+   -- look up line number
+   local line_num = 0
+   for idx, ln in ipairs(f.method_id.line_number_table) do
+      if f.location >= ln.start_loc then
+	 line_num = ln.line_num
+      else
+	 break
+      end
+   end
+
+   local disp = string.format("%6s %s.%s%s - %s (%s:%s)",
+			      "[" .. f.depth .. "]",
+			      f.method_id.class.getName().toString(),
+			      f.method_id.name,
+			      f.method_id.sig,
+			      f.location,
+			      f.method_id.class.sourcefile or "<unknown>",
+			      line_num)
    if f.depth == depth then
       disp = string.gsub(disp, ".", "*", 1)
    end
-   if f.sourcefile then
-      disp = disp .. "(" .. f.sourcefile
-      if f.line_num then
-	 disp = disp .. ":" .. f.line_num
-      end
-      disp = disp .. ")"
-   else
-      disp = disp .. "(" .. f.source .. ")"
-   end
+
    return disp
 end
 

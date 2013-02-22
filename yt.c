@@ -360,6 +360,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   printf("-------====---------\n");
   printf("Yellow Tree Debugger\n");
   printf("-------====---------\n");
+  fflush(stdout);
 
   /* start and run the debugger command loop */
   thread_class = (*jni)->FindClass(jni, "java/lang/Thread");

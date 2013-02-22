@@ -46,6 +46,10 @@ jmethod_id_mt.__index = function(method_id, k)
       elseif k == "ret" then
 	 return ret
       end
+   elseif k == "file" then
+      return lj_get_source_filename(method_id.class)
+   elseif k == "line_number_table" then
+      return lj_get_line_number_table(method_id)
    end
 end
 
@@ -107,6 +111,13 @@ jobject_mt.__index = function(object, key)
 
    if key == "methods" then
       return lj_get_class_methods(class)
+   end
+
+   -- special field for "class" objects
+   if lj_toString(class) == "class java.lang.Class" then
+      if key == "sourcefile" then
+	 return lj_get_source_filename(object)
+      end
    end
 
    local methods = find_methods(class, key)

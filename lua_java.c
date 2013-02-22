@@ -144,15 +144,6 @@ static int lj_get_stack_frame(lua_State *L)
   int frame_num;
   jvmtiFrameInfo fi;
   jint count;
-  jclass cls;
-  char *class_name;
-  char *sourcefile;
-  char *method_name;
-  char *source = "<file>";
-  int j;
-  jint line_number;
-  jint linescount;
-  jvmtiLineNumberEntry *lines;
 
   frame_num = luaL_checkint(L, 1);
   lua_pop(L, 1);
@@ -165,64 +156,14 @@ static int lj_get_stack_frame(lua_State *L)
   }
   assert(count == 1);
 
-  lj_err = (*lj_jvmti)->GetMethodDeclaringClass(lj_jvmti, fi.method, &cls);
-  lj_check_jvmti_error(L);
-  assert(cls != NULL);
-
-  lj_err = (*lj_jvmti)->GetClassSignature(lj_jvmti, cls, &class_name, NULL);
-  lj_check_jvmti_error(L);
-  lj_err = (*lj_jvmti)->GetMethodName(lj_jvmti, fi.method, &method_name, NULL, NULL);
-  lj_check_jvmti_error(L);
-  lj_err = (*lj_jvmti)->GetSourceFileName(lj_jvmti, cls, &sourcefile);
-  lj_check_jvmti_error(L);
-
-  lj_err = (*lj_jvmti)->GetLineNumberTable(lj_jvmti, fi.method, &linescount, &lines);
-  if(lj_err == JVMTI_ERROR_NATIVE_METHOD)
-    source = "<native_method>";
-  else if(lj_err == JVMTI_ERROR_ABSENT_INFORMATION)
-    source = "<absent_info>";
-  else
-    lj_check_jvmti_error(L);
-
-  /* link the bytecode offset to LineNumberTable if exists */
-  for (j = 0; j < linescount; ++j)
-  {
-    if(j < (linescount - 1) &&
-       fi.location < lines[j+1].start_location)
-      break;
-    else if(j == (linescount - 1))
-      break;
-  }
-  if(linescount)
-    line_number = lines[j].line_number;
-
   lua_newtable(L);
 
-  lua_pushstring(L, class_name);
-  lua_setfield(L, -2, "class");
-
-  lua_pushstring(L, method_name);
-  lua_setfield(L, -2, "method");
-
-  lua_pushstring(L, source);
-  lua_setfield(L, -2, "source");
-
-  lua_pushinteger(L, line_number);
-  lua_setfield(L, -2, "line_num");
-
-  if (sourcefile)
-  {
-    lua_pushstring(L, sourcefile);
-    lua_setfield(L, -2, "sourcefile");
-  }
-
+  lua_pushinteger(L, fi.location);
+  lua_setfield(L, -2, "location");
   new_jmethod_id(L, fi.method);
   lua_setfield(L, -2, "method_id");
-
   lua_pushinteger(L, frame_num);
   lua_setfield(L, -2, "depth");
-
-  free_jvmti_refs(lj_jvmti, method_name, class_name, sourcefile, lines, (void *)-1);
 
   return 1;
 }
@@ -987,6 +928,59 @@ static int lj_resume_jvm_and_wait(lua_State *L)
   return 0;
 }
 
+static int lj_get_source_filename(lua_State *L)
+{
+  jobject class;
+  char *sourcefile;
+
+  class = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetSourceFileName(lj_jvmti, class, &sourcefile);
+  if (lj_err == JVMTI_ERROR_ABSENT_INFORMATION)
+  {
+    lua_pushnil(L);
+  }
+  else
+  {
+    lj_check_jvmti_error(L);
+    lua_pushstring(L, sourcefile);
+  }
+
+  return 1;
+}
+
+static int lj_get_line_number_table(lua_State *L)
+{
+  jmethodID method_id;
+  jint line_count;
+  jvmtiLineNumberEntry *lines;
+  int i;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetLineNumberTable(lj_jvmti, method_id, &line_count, &lines);
+  if (lj_err == JVMTI_ERROR_NATIVE_METHOD ||
+      lj_err == JVMTI_ERROR_ABSENT_INFORMATION) {
+    lua_pushnil(L);
+  } else {
+    lua_newtable(L);
+    for (i = 0; i < line_count; ++i)
+    {
+      lua_newtable(L);
+      lua_pushinteger(L, lines[i].start_location);
+      lua_setfield(L, -2, "start_loc");
+      lua_pushinteger(L, lines[i].line_number);
+      lua_setfield(L, -2, "line_num");
+      lua_rawseti(L, -2, i+1);
+    }
+    lj_check_jvmti_error(L);
+  }
+
+  return 1;
+}
+
 static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 				 jmethodID mid, jlocation location)
 {
@@ -1118,6 +1112,8 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_field_modifiers",        lj_get_field_modifiers);
   lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
   lua_register(L, "lj_resume_jvm_and_wait",        lj_resume_jvm_and_wait);
+  lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
+  lua_register(L, "lj_get_line_number_table",      lj_get_line_number_table);
 
   lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
 
