@@ -22,7 +22,7 @@ function command_loop()
    while true do
       io.write("yt> ")
       local cmd = io.read("*line")
-      local chunk = loadstring(cmd)
+      local chunk = load(cmd)
       local success, m2 = pcall(chunk)
       if not success then
 	 print("Error: " .. m2)
@@ -67,12 +67,8 @@ function locals()
    local frame = lj_get_stack_frame(depth)
    local var_table = lj_get_local_variable_table(frame.method_id)
    for k, v in pairs(var_table) do
-      local type = v.sig
-      if (#v.sig > 1) then
-	 type = "L"
-      end
       print(string.format("%10s = %s", k,
-			  lj_get_local_variable(depth, v.slot, type)))
+			  lj_get_local_variable(depth, v.slot, v.sig)))
    end
 end
 
@@ -133,6 +129,13 @@ function bp(method_decl, line_num)
    local b = {}
    b.method_decl = method_decl
    b.line_num = line_num or 0
+   (getmetatable(b) or (setmetatable(b, {}) and getmetatable(b))).__tostring = function(bp)
+      local disp = string.format("%s", bp.method_decl)
+      if (bp.line_num) then
+	 disp = disp .. " (line " .. bp.line_num .. ")"
+      end
+      return disp
+   end
 
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
@@ -142,24 +145,19 @@ function bp(method_decl, line_num)
       end
    end
 
-   b.method_id = lookup_method_id(method_decl)
+   local method = method_decl_parse(method_decl)
+   b.method_id = lj_get_method_id(method.class, method.method, method.args, method.ret)
    lj_set_breakpoint(b.method_id, b.line_num)
    table.insert(breakpoints, b)
    print("ok")
+
+   return b
 end
 
 -- ============================================================
 -- List breakpoint(s)
 -- ============================================================
 function bl(num)
-   local function print_bp(idx, bp)
-      local disp = string.format("%4d: %s", idx, bp.method_decl)
-      if (bp.line_num) then
-	 disp = disp .. " (line " .. bp.line_num .. ")"
-      end
-      print(disp)
-   end
-
    -- print only one
    if num then
       local bp = breakpoints[num]
@@ -167,7 +165,7 @@ function bl(num)
 	 print("Invalid breakpoint")
 	 return
       end
-      print_bp(num, bp)
+      print(string.format("%4d: %s", num, bp))
       return
    end
 
@@ -177,7 +175,7 @@ function bl(num)
       return
    end
    for idx, bp in ipairs(breakpoints) do
-      print_bp(idx, bp)
+      bl(idx)
    end
 end
 
@@ -199,6 +197,14 @@ end
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
 function cb_breakpoint(thread, method_id, location)
+   local bp
+   for idx, v in pairs(breakpoints) do
+      if v.method_id == method_id then
+	 bp = v
+      end
+   end
+   assert(bp)
+   print(string.format("bp hit %s", bp))
    return true
 end
 
@@ -206,14 +212,32 @@ function init_jvmti_callbacks()
    lj_set_jvmti_callback("breakpoint", cb_breakpoint)
 end
 
-init_jvmti_callbacks()
-
  --  _    _ _   _ _     
  -- | |  | | | (_) |    
  -- | |  | | |_ _| |___ 
  -- | |  | | __| | / __|
  -- | |__| | |_| | \__ \
  --  \____/ \__|_|_|___/
+
+-- ============================================================
+-- make locals available throughout
+function init_locals_environment()
+   local mt = getmetatable(_ENV) or (setmetatable(_ENV, {}) and getmetatable(_ENV))
+   mt.__index = function(t, k)
+      local frame = lj_get_stack_frame(depth)
+      if not frame then
+	 return
+      end
+      local locals = lj_get_local_variable_table(frame.method_id)
+      local l = locals[k]
+      if l then
+	 return lj_get_local_variable(depth, l.slot, l.sig)
+      end
+   end
+   mt.__newindex = function(t, k, v)
+      rawset(t, k, v)
+   end
+end
 
 -- ============================================================
 -- String format of stack frame
@@ -232,13 +256,6 @@ function stack_frame_to_string(f)
       disp = disp .. "(" .. f.source .. ")"
    end
    return disp
-end
-
--- ============================================================
--- Look up a method id from a method declaration
-function lookup_method_id(method_decl)
-   local method = method_decl_parse(method_decl)
-   return lj_get_method_id(method.class, method.method, method.args, method.ret)
 end
 
 -- ============================================================
@@ -286,6 +303,8 @@ function dump(o)
    end
 end
 
+init_locals_environment()
+init_jvmti_callbacks()
 print("debuglib.lua - loaded with " .. _VERSION)
 
 -- internal function fors testing/dev

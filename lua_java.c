@@ -439,7 +439,7 @@ static int lj_get_local_variable(lua_State *L)
       lua_pushnumber(L, val_d);
     }
   }
-  else if (!strcmp(type, "L"))
+  else if (!strncmp(type, "L", 1))
   {
     /* GetLocalInstance() is new to JVMTI 1.2 */
     /* if (slot == 0) */
