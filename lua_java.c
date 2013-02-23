@@ -149,7 +149,7 @@ static int lj_get_stack_frame(lua_State *L)
   lua_pop(L, 1);
 
   /* get stack frame info */
-  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, get_current_java_thread(), frame_num, 1, &fi, &count);
+  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, get_current_java_thread(), frame_num-1, 1, &fi, &count);
   lj_check_jvmti_error(L);
   if (count == 0) {
     return 0;
@@ -327,7 +327,7 @@ static int lj_get_local_variable(lua_State *L)
   if (!strcmp(type, "I"))
   {
     lj_err = (*lj_jvmti)->GetLocalInt(lj_jvmti, get_current_java_thread(),
-				      depth, slot, &val_i);
+				      depth-1, slot, &val_i);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -341,7 +341,7 @@ static int lj_get_local_variable(lua_State *L)
   else if (!strcmp(type, "J"))
   {
     lj_err = (*lj_jvmti)->GetLocalLong(lj_jvmti, get_current_java_thread(),
-				       depth, slot, &val_j);
+				       depth-1, slot, &val_j);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -355,7 +355,7 @@ static int lj_get_local_variable(lua_State *L)
   else if (!strcmp(type, "F"))
   {
     lj_err = (*lj_jvmti)->GetLocalFloat(lj_jvmti, get_current_java_thread(),
-					depth, slot, &val_f);
+					depth-1, slot, &val_f);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -369,7 +369,7 @@ static int lj_get_local_variable(lua_State *L)
   else if (!strcmp(type, "D"))
   {
     lj_err = (*lj_jvmti)->GetLocalDouble(lj_jvmti, get_current_java_thread(),
-					 depth, slot, &val_d);
+					 depth-1, slot, &val_d);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -384,10 +384,10 @@ static int lj_get_local_variable(lua_State *L)
   {
     /* GetLocalInstance() is new to JVMTI 1.2 */
     /* if (slot == 0) */
-    /*   lj_err = (*lj_jvmti)->GetLocalInstance(lj_jvmti, get_current_java_thread(), depth, &val_l); */
+    /*   lj_err = (*lj_jvmti)->GetLocalInstance(lj_jvmti, get_current_java_thread(), depth-1, &val_l); */
     /* else */
     lj_err = (*lj_jvmti)->GetLocalObject(lj_jvmti, get_current_java_thread(),
-					 depth, slot, &val_l);
+					 depth-1, slot, &val_l);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);

@@ -10,7 +10,7 @@
  --  \_____\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|___/
 
 -- current stack depth
-depth = 0
+depth = 1
 
 -- breakpoint list
 breakpoints = {}
@@ -53,12 +53,16 @@ function where()
 
    if frame_count == 0 then
       print("No code running")
-      return
+      return nil
    end
 
-   for i = 0, frame_count - 1 do
-      print(stack_frame_to_string(lj_get_stack_frame(i)))
+   local stack = {}
+   for i = 1, frame_count do
+      local f = lj_get_stack_frame(i)
+      stack[i] = f
+      print(stack_frame_to_string(f))
    end
+   return stack
 end
 
 -- ============================================================
@@ -92,7 +96,7 @@ end
 -- ============================================================
 function up(num)
    num = num or 1
-   frame(depth + num)
+   return frame(depth + num)
 end
 
 -- ============================================================
@@ -100,26 +104,28 @@ end
 -- ============================================================
 function down(num)
    num = num or 1
-   frame(depth - num)
+   return frame(depth - num)
 end
 
 -- ============================================================
 -- Set the stack depth
 -- ============================================================
 function frame(num)
-   num = num or 0
+   num = num or 1
    local frame_count = lj_get_frame_count()
-   if num < 0 then
+   if num < 1 then
       print("Invalid frame number " .. num)
-      depth = 0
-   elseif num > frame_count - 1 then
+      depth = 1
+   elseif num > frame_count then
       print("Invalid frame number " .. num)
-      depth = frame_count - 1
+      depth = frame_count
    else
       depth = num
    end
-      
-   print(stack_frame_to_string(lj_get_stack_frame(depth)))
+
+   local f = lj_get_stack_frame(i)
+   print(stack_frame_to_string(f))
+   return f
 end
 
 -- ============================================================
@@ -167,7 +173,7 @@ function bl(num)
 	 return
       end
       print(string.format("%4d: %s", num, bp))
-      return
+      return bp
    end
 
    -- print all
@@ -178,6 +184,8 @@ function bl(num)
    for idx, bp in ipairs(breakpoints) do
       bl(idx)
    end
+
+   return breakpoints
 end
 
 -- ============================================================
@@ -198,7 +206,7 @@ end
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
 function cb_breakpoint(thread, method_id, location)
-   depth = 0
+   depth = 1
    local bp
    for idx, v in pairs(breakpoints) do
       if v.method_id == method_id then
@@ -206,7 +214,7 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
-   print(stack_frame_to_string(lj_get_stack_frame(0)))
+   print(stack_frame_to_string(lj_get_stack_frame(1)))
    return true
 end
 
