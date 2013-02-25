@@ -215,7 +215,13 @@ function cb_breakpoint(thread, method_id, location)
    end
    assert(bp)
    print(stack_frame_to_string(lj_get_stack_frame(1)))
-   return true
+   if bp.handler then
+      -- allow bp handler if present
+      return bp:handler()
+   else
+      -- else default to breaking to command loop
+      return true
+   end
 end
 
 function init_jvmti_callbacks()
@@ -331,7 +337,13 @@ function x()
    xtoString = lj_get_method_id("java/lang/Object", "toString", "", "Ljava/lang/String;")
    xtoUpperCase = lj_get_method_id("java/lang/String", "toUpperCase", "", "Ljava/lang/String;")
    xconcat = lj_get_method_id("java/lang/String", "concat", "Ljava/lang/String;", "Ljava/lang/String;")
-   bp("Test.b(I)V")
+   test_bp = bp("Test.b(I)V")
+   test_bp.handler = function(bp)
+      print("test_bp.handler")
+      print(string.format("bp=%s", bp))
+      print(string.format("a=%s", a))
+      return false
+   end
    bl()
    print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
 end
