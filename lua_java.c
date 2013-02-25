@@ -14,7 +14,13 @@
 
 static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
+
+/* main JNIEnv pointer, used by all calls */
 static JNIEnv *lj_jni;
+/* saved [c]ommand [l]oop thread JNIEnv pointer */
+static JNIEnv *lj_cl_jni;
+
+static jthread lj_current_thread;
 
 /* needed to have a lua state at jvmti callback */
 static lua_State *lj_L;
@@ -108,6 +114,9 @@ static jobject get_current_java_thread()
   jclass thread_class;
   jmethodID getCurrentThread_method_id;
   jobject current_thread;
+
+  if (lj_current_thread)
+    return lj_current_thread;
 
   thread_class = (*lj_jni)->FindClass(lj_jni, "java/lang/Thread");
   EXCEPTION_CHECK(lj_jni);
@@ -995,7 +1004,8 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   if (ref == LUA_NOREF)
     return;
 
-  lj_set_jni(jni);
+  lj_jni = jni;
+  lj_current_thread = thread;
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
@@ -1011,25 +1021,23 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
        we notify() the command loop which is waiting here, then
        wait for the command loop to notify() us back and resume
        execution */
+    lj_jni = lj_cl_jni;
     lj_resume_jvm_and_wait(L);
   }
 }
 
 static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id)
 {
-  lj_set_jni(jni);
 }
 
 static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jboolean was_popped_by_exception, jvalue return_value)
 {
-  lj_set_jni(jni);
 }
 
 static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jlocation location)
 {
-  lj_set_jni(jni);
 }
 
 static int lj_set_jvmti_callback(lua_State *L)
@@ -1174,6 +1182,8 @@ void lj_set_jni(JNIEnv *jni)
 {
   assert(jni);
   lj_jni = jni;
+  if (!lj_cl_jni)
+    lj_cl_jni = jni;
 }
 
 void lj_set_jvm_exec_monitor(jrawMonitorID mon)
