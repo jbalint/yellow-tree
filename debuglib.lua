@@ -224,6 +224,15 @@ function cb_breakpoint(thread, method_id, location)
    end
 end
 
+function cb_method_entry(thread)
+end
+
+function cb_method_exit(thread)
+end
+
+function cb_single_step(thread)
+end
+
 function init_jvmti_callbacks()
    lj_set_jvmti_callback("breakpoint", cb_breakpoint)
 end

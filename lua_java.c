@@ -15,6 +15,7 @@
 static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 static JNIEnv *lj_jni;
+
 /* needed to have a lua state at jvmti callback */
 static lua_State *lj_L;
 /* this is used to signal the JVM to resume execution after
@@ -29,6 +30,9 @@ typedef struct {
 /* function references for callback functions */
 static struct {
   int cb_breakpoint_ref;
+  int cb_method_entry_ref;
+  int cb_method_exit_ref;
+  int cb_single_step_ref;
 } lj_jvmti_callbacks;
 
 /* marker where NULL is used as a jthread param for current thread */
@@ -1011,6 +1015,23 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   }
 }
 
+static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id)
+{
+  lj_set_jni(jni);
+}
+
+static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
+				   jboolean was_popped_by_exception, jvalue return_value)
+{
+  lj_set_jni(jni);
+}
+
+static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
+				   jlocation location)
+{
+  lj_set_jni(jni);
+}
+
 static int lj_set_jvmti_callback(lua_State *L)
 {
   const char *callback;
@@ -1029,6 +1050,21 @@ static int lj_set_jvmti_callback(lua_State *L)
   {
     evCbs->Breakpoint = cb_breakpoint;
     lj_jvmti_callbacks.cb_breakpoint_ref = ref;
+  }
+  else if (!strcmp(callback, "method_entry"))
+  {
+    evCbs->MethodEntry = cb_method_entry;
+    lj_jvmti_callbacks.cb_method_entry_ref = ref;
+  }
+  else if (!strcmp(callback, "method_exit"))
+  {
+    evCbs->MethodExit = cb_method_exit;
+    lj_jvmti_callbacks.cb_method_exit_ref = ref;
+  }
+  else if (!strcmp(callback, "single_step"))
+  {
+    evCbs->SingleStep = cb_single_step;
+    lj_jvmti_callbacks.cb_single_step_ref = ref;
   }
   else
   {

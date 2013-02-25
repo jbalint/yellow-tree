@@ -18,7 +18,6 @@
 static struct agent_globals {
   jvmtiEnv *jvmti; /* global JVMTI reference */
   jvmtiError jerr; /* for convenience, NOT thread safe */
-  jint depth;
   jlocation ss_target; /* target BCI (of ssmethod) for single stepping */
   jmethodID ss_mid;
   jint ss_destheight; /* our destination stack height */
@@ -89,8 +88,6 @@ step_next_line(JNIEnv *env, int intomethod)
   jlocation bci;
   jint i;
   jint frames;
-  Gagent.jerr = (*Gagent.jvmti)->GetCurrentThread(Gagent.jvmti, &thread);
-  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
   Gagent.jerr = (*Gagent.jvmti)->GetFrameLocation(Gagent.jvmti, thread,
 												  0 /* TODO any reason not to be zero? */,
 												  &curmid, &bci);
