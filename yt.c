@@ -78,94 +78,6 @@ event_change(jvmtiEnv *jvmti, jvmtiEventMode mode,
   return jerr;
 }
 
-/*static*/ jvmtiEventMode 
-event_status(jvmtiEvent type)
-{
-  return event_states[type - JVMTI_MIN_EVENT_TYPE_VAL];
-}
-
-static void
-dump_locals(JNIEnv *jni)
-{
-  jthread thread = NULL;
-  jlocation bci = 0;
-  jmethodID curmid;
-  jvmtiLocalVariableEntry *lvtable;
-  jint lvcount;
-  jint i;
-
-  Gagent.jerr = (*Gagent.jvmti)->GetFrameLocation(Gagent.jvmti, thread,
-												  Gagent.depth, &curmid, &bci);
-  if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE)
-	return;
-  Gagent.jerr = (*Gagent.jvmti)->GetLocalVariableTable(Gagent.jvmti, curmid,
-													   &lvcount, &lvtable);
-  if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE)
-	return;
-  for(i = 0; i < lvcount; ++i)
-  {
-	jvmtiLocalVariableEntry *lv = &lvtable[i];
-	if(bci >= lv->start_location && bci <= lv->start_location + lv->length)
-	{
-	  jint ji;
-	  jlong j;
-	  jfloat f;
-	  jdouble d;
-	  jobject o;
-	  printf("[%d] %s(%s)", i, lv->name, lv->signature);
-	  switch(lv->signature[0])
-	  {
-	  case '[': /* array */
-		printf("<array>");
-		break;
-	  case 'L': /* object */
-		Gagent.jerr = (*Gagent.jvmti)->GetLocalObject(Gagent.jvmti, thread,
-													  Gagent.depth, lv->slot, &o);
-		check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-		Gagent.jerr = (*Gagent.jvmti)->GetObjectHashCode(Gagent.jvmti, o, &ji);
-		check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-		{
-		  jclass clsobject = (*jni)->FindClass(jni, "java/lang/Object");
-		  jmethodID midtostring = (*jni)->GetMethodID(jni, clsobject,
-													  "toString", "()Ljava/lang/String;");
-		  jstring jobjstr = (*jni)->CallObjectMethod(jni, o, midtostring);
-		  const char *objstr = (*jni)->GetStringUTFChars(jni, jobjstr, NULL);
-		  printf("@%x=%s", ji, objstr);
-		  (*jni)->ReleaseStringUTFChars(jni, jobjstr, objstr);
-		}
-		break;
-	  case 'I':
-		Gagent.jerr = (*Gagent.jvmti)->GetLocalInt(Gagent.jvmti, thread,
-												   Gagent.depth, lv->slot, &ji);
-		check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-		printf("=%d", ji);
-		break;
-	  case 'J':
-		Gagent.jerr = (*Gagent.jvmti)->GetLocalLong(Gagent.jvmti, thread,
-													Gagent.depth, lv->slot, &j);
-		check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-		printf("=%ld", j);
-		break;
-	  case 'F':
-		Gagent.jerr = (*Gagent.jvmti)->GetLocalFloat(Gagent.jvmti, thread,
-													 Gagent.depth, lv->slot, &f);
-		check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-		printf("=%g", f);
-		break;
-	  case 'D':
-		Gagent.jerr = (*Gagent.jvmti)->GetLocalDouble(Gagent.jvmti, thread,
-													  Gagent.depth, lv->slot, &d);
-		check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-		printf("=%g", f);
-		break;
-	  }
-	  printf("\n");
-	}
-	free_jvmti_refs(Gagent.jvmti, lv->name, lv->signature, lv->generic_signature, (void *)-1);
-  }
-  free_jvmti_refs(Gagent.jvmti, lvtable, (void *)-1);
-}
-
 static void
 step_next_line(JNIEnv *env, int intomethod)
 {
@@ -219,40 +131,6 @@ step_next_line(JNIEnv *env, int intomethod)
   EV_ENABLET(METHOD_EXIT, thread);
 end:
   free_jvmti_refs(Gagent.jvmti, linetable, (void *)-1);
-}
-
-static void
-frame_adjust(int fradj, int absolute)
-{
-  jthread thread = NULL;
-  jint frames;
-/*   Gagent.jerr = (*Gagent.jvmti)->GetCurrentThread(Gagent.jvmti, &thread); */
-/*   if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE) */
-/* 	return; */
-  Gagent.jerr = (*Gagent.jvmti)->GetFrameCount(Gagent.jvmti, thread, &frames);
-  if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE)
-	return;
-  if((!absolute && (Gagent.depth + fradj >= frames ||
-					Gagent.depth + fradj < 0)) ||
-	 (absolute && (fradj >= frames || fradj < 0)))
-  {
-	printf("Invalid frame\n");
-	return;
-  }
-  if(absolute)
-	Gagent.depth = fradj;
-  else
-	Gagent.depth += fradj;
-  /* dump_stack(1, Gagent.depth); */
-}
-
-static void JNICALL
-cbFramePop(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID mid,
-		   jboolean excpopped)
-{
-  assert(!"Not used");
-  EV_DISABLE(FRAME_POP);
-  lua_command_loop(jni);
 }
 
 static void JNICALL
