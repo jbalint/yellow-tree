@@ -18,7 +18,7 @@ jmethod_id_mt = {}
 jmethod_id_mt.__tostring = function(method_id)
    return string.format("jmethod_id@%s %s.%s%s",
 			lj_pointer_to_string(method_id),
-			method_id.class.getName().toString(),
+			method_id.class.name.toString(),
 			method_id.name,
 			method_id.sig)
 end
@@ -49,7 +49,17 @@ jmethod_id_mt.__index = function(method_id, k)
    elseif k == "file" then
       return lj_get_source_filename(method_id.class)
    elseif k == "line_number_table" then
-      return lj_get_line_number_table(method_id)
+      local lnt = lj_get_line_number_table(method_id)
+      if not lnt then
+	 --print(string.format("line_number_table nil: %s", method_id))
+      end
+      return lnt
+   elseif k == "local_variable_table" then
+      local locals = lj_get_local_variable_table(method_id)
+      if not locals then
+	 --print(string.format("local_variable_table nil: %s", method_id))
+      end
+      return locals
    end
 end
 

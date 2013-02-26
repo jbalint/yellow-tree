@@ -15,6 +15,10 @@ depth = 1
 -- breakpoint list
 breakpoints = {}
 
+-- single step tracking
+single_step_location = nil
+single_step_method_id = nil
+
 -- ============================================================
 -- Main command loop
 -- ============================================================
@@ -70,7 +74,7 @@ end
 -- ============================================================
 function locals()
    local frame = lj_get_stack_frame(depth)
-   local var_table = lj_get_local_variable_table(frame.method_id)
+   local var_table = frame.method_id.local_variable_table
    for k, v in pairs(var_table) do
       print(string.format("%10s = %s", k,
 			  lj_get_local_variable(depth, v.slot, v.sig)))
@@ -81,7 +85,26 @@ end
 -- ============================================================
 function next(num)
    num = num or 1
-   -- TODO see step_next_line() in yt.c
+
+   -- find location of next line
+   local f = lj_get_stack_frame(depth)
+   local line_nums = f.method_id.line_number_table
+   for idx, ln in ipairs(line_nums) do
+      if f.location < ln.location then
+	 single_step_location = ln.location
+	 single_step_method_id = f.method_id
+	 break
+      end
+   end
+
+   -- TODO allow stepping up a frame....
+   if not single_step_location then
+      print("Cannot step to next line")
+      return
+   end
+
+   lj_set_jvmti_callback("single_step", cb_single_step)
+   g()
 end
 
 -- ============================================================
@@ -224,13 +247,24 @@ function cb_breakpoint(thread, method_id, location)
    end
 end
 
-function cb_method_entry(thread)
+function cb_method_entry(thread, method_id)
 end
 
-function cb_method_exit(thread)
+function cb_method_exit(thread, method_id, was_popped_by_exception, return_value)
 end
 
-function cb_single_step(thread)
+function cb_single_step(thread, method_id, location)
+   if single_step_location and
+      location >= single_step_location and
+      single_step_method_id == method_id then
+      lj_clear_jvmti_callback("single_step")
+      single_step_location = nil
+      single_step_method_id = nil
+      print(stack_frame_to_string(lj_get_stack_frame(depth)))
+      return true
+   else
+      return false
+   end
 end
 
 function init_jvmti_callbacks()
@@ -253,7 +287,10 @@ function init_locals_environment()
       if not frame then
 	 return
       end
-      local locals = lj_get_local_variable_table(frame.method_id)
+      local locals = frame.method_id.local_variable_table
+      if not locals then
+	 return
+      end
       local l = locals[k]
       if l then
 	 return lj_get_local_variable(depth, l.slot, l.sig)
@@ -268,9 +305,9 @@ end
 -- String format of stack frame
 function stack_frame_to_string(f)
    -- look up line number
-   local line_num = 0
-   for idx, ln in ipairs(f.method_id.line_number_table) do
-      if f.location >= ln.start_loc then
+   local line_num = -1
+   for idx, ln in ipairs(f.method_id.line_number_table or {}) do
+      if f.location >= ln.location then
 	 line_num = ln.line_num
       else
 	 break

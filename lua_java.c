@@ -44,6 +44,13 @@ static struct {
 /* marker where NULL is used as a jthread param for current thread */
 #define NULL_JTHREAD NULL
 
+#define EV_ENABLET(EVTYPE, EVTHR) \
+  (lj_err = event_change(lj_jvmti, JVMTI_ENABLE,		\
+			 JVMTI_EVENT_##EVTYPE, (EVTHR)))
+#define EV_DISABLET(EVTYPE, EVTHR) \
+  (lj_err = event_change(lj_jvmti, JVMTI_DISABLE,		\
+			 JVMTI_EVENT_##EVTYPE, (EVTHR)))
+
 static void lj_check_jvmti_error(lua_State *L)
 {
   char *errmsg = "<Unknown Error>";
@@ -210,6 +217,11 @@ static int lj_get_local_variable_table(lua_State *L)
   lua_pop(L, 1);
 
   lj_err = (*lj_jvmti)->GetLocalVariableTable(lj_jvmti, method_id, &count, &vars);
+  if (lj_err == JVMTI_ERROR_ABSENT_INFORMATION)
+  {
+    lua_pushnil(L);
+    return 1;
+  }
   lj_check_jvmti_error(L);
 
   lua_newtable(L);
@@ -983,7 +995,7 @@ static int lj_get_line_number_table(lua_State *L)
     {
       lua_newtable(L);
       lua_pushinteger(L, lines[i].start_location);
-      lua_setfield(L, -2, "start_loc");
+      lua_setfield(L, -2, "location");
       lua_pushinteger(L, lines[i].line_number);
       lua_setfield(L, -2, "line_num");
       lua_rawseti(L, -2, i+1);
@@ -995,7 +1007,7 @@ static int lj_get_line_number_table(lua_State *L)
 }
 
 static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
-				 jmethodID mid, jlocation location)
+				 jmethodID method_id, jlocation location)
 {
   int ref = lj_jvmti_callbacks.cb_breakpoint_ref;
   lua_State *L = lj_L;
@@ -1009,7 +1021,7 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
-  new_jmethod_id(L, mid);
+  new_jmethod_id(L, method_id);
   lua_pushinteger(L, location);
   lua_call(L, 3, 1);
   luaL_checktype(L, 1, LUA_TBOOLEAN);
@@ -1028,16 +1040,159 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
 static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id)
 {
+  /*
+
+Code copied from cb_breakpoint
+
+  */
+  int ref = lj_jvmti_callbacks.cb_method_entry_ref;
+  lua_State *L = lj_L;
+  int break_to_command_loop;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  lj_jni = jni;
+  lj_current_thread = thread;
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_call(L, 2, 1);
+  luaL_checktype(L, 1, LUA_TBOOLEAN);
+  break_to_command_loop = lua_toboolean(L, -1);
+  lua_pop(L, 1);
+  if (break_to_command_loop)
+  {
+    /* semantically makes sense, but method name doesn't match...
+       we notify() the command loop which is waiting here, then
+       wait for the command loop to notify() us back and resume
+       execution */
+    lj_jni = lj_cl_jni;
+    lj_resume_jvm_and_wait(L);
+  }
 }
 
 static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jboolean was_popped_by_exception, jvalue return_value)
 {
+  /*
+
+Code copied from cb_breakpoint
+
+  */
+  int ref = lj_jvmti_callbacks.cb_method_exit_ref;
+  lua_State *L = lj_L;
+  int break_to_command_loop;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  lj_jni = jni;
+  lj_current_thread = thread;
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_pushboolean(L, was_popped_by_exception);
+  /* TODO return_value must be passed to Lua */
+  lua_call(L, 3, 1);
+  luaL_checktype(L, 1, LUA_TBOOLEAN);
+  break_to_command_loop = lua_toboolean(L, -1);
+  lua_pop(L, 1);
+  if (break_to_command_loop)
+  {
+    /* semantically makes sense, but method name doesn't match...
+       we notify() the command loop which is waiting here, then
+       wait for the command loop to notify() us back and resume
+       execution */
+    lj_jni = lj_cl_jni;
+    lj_resume_jvm_and_wait(L);
+  }
 }
 
 static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jlocation location)
 {
+  /*
+
+Code copied from cb_breakpoint
+
+  */
+  int ref = lj_jvmti_callbacks.cb_single_step_ref; /**/
+  lua_State *L = lj_L;
+  int break_to_command_loop;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  lj_jni = jni;
+  lj_current_thread = thread;
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_pushinteger(L, location);
+  lua_call(L, 3, 1);
+  luaL_checktype(L, 1, LUA_TBOOLEAN);
+  break_to_command_loop = lua_toboolean(L, -1);
+  lua_pop(L, 1);
+  if (break_to_command_loop)
+  {
+    /* semantically makes sense, but method name doesn't match...
+       we notify() the command loop which is waiting here, then
+       wait for the command loop to notify() us back and resume
+       execution */
+    lj_jni = lj_cl_jni;
+    lj_resume_jvm_and_wait(L);
+  }
+}
+
+static void get_jvmti_callback_pointers(const char *callback,
+					void ***jvmti_function_ptr_ptr,
+					void **lj_function_ptr, 
+					int **ref_ptr)
+{
+  int *x;
+  void *y;
+  void **z;
+  jvmtiEventCallbacks *evCbs = get_jvmti_callbacks();
+  if (!ref_ptr)
+    ref_ptr = &x;
+  if (!lj_function_ptr)
+    lj_function_ptr = &y;
+  if (!jvmti_function_ptr_ptr)
+    jvmti_function_ptr_ptr = &z;
+
+  *ref_ptr = NULL;
+  *jvmti_function_ptr_ptr = NULL;
+  *lj_function_ptr = NULL;
+
+  /* TODO there might(...?) be a better way to map all these callbacks */
+  if (!strcmp(callback, "breakpoint"))
+  {
+    *jvmti_function_ptr_ptr = (void **)&evCbs->Breakpoint;
+    *lj_function_ptr = cb_breakpoint;
+    *ref_ptr = &lj_jvmti_callbacks.cb_breakpoint_ref;
+  }
+  else if (!strcmp(callback, "method_entry"))
+  {
+    *jvmti_function_ptr_ptr = (void **)&evCbs->MethodEntry;
+    *lj_function_ptr = cb_method_entry;
+    *ref_ptr = &lj_jvmti_callbacks.cb_method_entry_ref;
+  }
+  else if (!strcmp(callback, "method_exit"))
+  {
+    *jvmti_function_ptr_ptr = (void **)&evCbs->MethodExit;
+    *lj_function_ptr = cb_method_exit;
+    *ref_ptr = &lj_jvmti_callbacks.cb_method_exit_ref;
+  }
+  else if (!strcmp(callback, "single_step"))
+  {
+    *jvmti_function_ptr_ptr = (void **)&evCbs->SingleStep;
+    *lj_function_ptr = cb_single_step;
+    *ref_ptr = &lj_jvmti_callbacks.cb_single_step_ref;
+  }
 }
 
 static int lj_set_jvmti_callback(lua_State *L)
@@ -1045,6 +1200,9 @@ static int lj_set_jvmti_callback(lua_State *L)
   const char *callback;
   int ref;
   jvmtiEventCallbacks *evCbs;
+  void **jvmti_callback_ptr;
+  void *lj_callback_ptr;
+  int *ref_ptr;
 
   callback = luaL_checkstring(L, 1);
   luaL_checktype(L, 2, LUA_TFUNCTION);
@@ -1053,31 +1211,48 @@ static int lj_set_jvmti_callback(lua_State *L)
 
   evCbs = get_jvmti_callbacks();
 
-  /* TODO there might(...?) be a better way to map all these callbacks */
-  if (!strcmp(callback, "breakpoint"))
-  {
-    evCbs->Breakpoint = cb_breakpoint;
-    lj_jvmti_callbacks.cb_breakpoint_ref = ref;
-  }
-  else if (!strcmp(callback, "method_entry"))
-  {
-    evCbs->MethodEntry = cb_method_entry;
-    lj_jvmti_callbacks.cb_method_entry_ref = ref;
-  }
-  else if (!strcmp(callback, "method_exit"))
-  {
-    evCbs->MethodExit = cb_method_exit;
-    lj_jvmti_callbacks.cb_method_exit_ref = ref;
-  }
-  else if (!strcmp(callback, "single_step"))
-  {
-    evCbs->SingleStep = cb_single_step;
-    lj_jvmti_callbacks.cb_single_step_ref = ref;
-  }
-  else
+  if (!ref)
   {
     (void)luaL_error(L, "Unknown callback '%s'\n", callback);
   }
+
+  /* special handling for specific callback types */
+  if (!strcmp(callback, "single_step"))
+  {
+    EV_ENABLET(SINGLE_STEP, get_current_java_thread());
+  }
+
+  get_jvmti_callback_pointers(callback,
+			      &jvmti_callback_ptr, &lj_callback_ptr, &ref_ptr);
+  *jvmti_callback_ptr = lj_callback_ptr;
+  *ref_ptr = ref;
+
+  lj_err = (*lj_jvmti)->SetEventCallbacks(lj_jvmti, evCbs, sizeof(jvmtiEventCallbacks));
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
+static int lj_clear_jvmti_callback(lua_State *L)
+{
+  const char *callback;
+  void **jvmti_callback_ptr;
+  int *ref_ptr;
+  jvmtiEventCallbacks *evCbs;
+
+  callback = luaL_checkstring(L, 1);
+  lua_pop(L, 1);
+
+  evCbs = get_jvmti_callbacks();
+
+  if (!strcmp(callback, "single_step"))
+  {
+    EV_DISABLET(SINGLE_STEP, get_current_java_thread());
+  }
+
+  get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, NULL, &ref_ptr);
+  *jvmti_callback_ptr = NULL;
+  *ref_ptr = LUA_NOREF;
 
   lj_err = (*lj_jvmti)->SetEventCallbacks(lj_jvmti, evCbs, sizeof(jvmtiEventCallbacks));
   lj_check_jvmti_error(L);
@@ -1160,6 +1335,7 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_line_number_table",      lj_get_line_number_table);
 
   lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
+  lua_register(L, "lj_clear_jvmti_callback",       lj_clear_jvmti_callback);
 
   /* add Java type metatables to registry for luaL_checkdata() convenience */
   lua_getglobal(L, "java_bridge");
@@ -1173,6 +1349,9 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
 
   /* clear callback refs */
   lj_jvmti_callbacks.cb_breakpoint_ref = LUA_NOREF;
+  lj_jvmti_callbacks.cb_method_entry_ref = LUA_NOREF;
+  lj_jvmti_callbacks.cb_method_exit_ref = LUA_NOREF;
+  lj_jvmti_callbacks.cb_single_step_ref = LUA_NOREF;
 
   /* save jvmtiEnv pointer for global use */
   lj_jvmti = jvmti;
