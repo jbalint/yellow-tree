@@ -39,7 +39,10 @@ end
 -- Continue execution
 -- ============================================================
 function g()
-   lj_resume_jvm_and_wait()
+   lj_jvm_resume()
+   -- TODO ... O.o debugging (oasis3de) won't work startup
+   -- without this... no idea what's interfering (stdin...?)
+   os.execute("sleep " .. tonumber(1))
 end
 
 -- ============================================================
@@ -146,7 +149,7 @@ function frame(num)
       depth = num
    end
 
-   local f = lj_get_stack_frame(i)
+   local f = lj_get_stack_frame(depth)
    print(stack_frame_to_string(f))
    return f
 end
@@ -237,6 +240,7 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
+   print()
    print(stack_frame_to_string(lj_get_stack_frame(1)))
    if bp.handler then
       -- allow bp handler if present

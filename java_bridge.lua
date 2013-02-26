@@ -69,7 +69,7 @@ jfield_id_mt = {}
 jfield_id_mt.__tostring = function(field_id)
    return string.format("jfield_id@%s %s.%s type=%s",
 			lj_pointer_to_string(field_id),
-			field_id.class.getName().toString(),
+			field_id.class.name.toString(),
 			field_id.name,
 		        field_id.sig)
 end

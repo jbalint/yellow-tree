@@ -222,6 +222,9 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 	 when dumping first stack from in lua_command_loop() */
   set_signal_handler();
 #endif
+
+  lua_interface_init(Gagent.jvmti, Gagent.exec_monitor);
+
   printf("-------====---------\n");
   printf("Yellow Tree Debugger\n");
   printf("-------====---------\n");
@@ -237,7 +240,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   agent_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, thread_name);
   assert(agent_thread);
   (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, agent_thread, command_loop_thread,
-								  NULL, JVMTI_THREAD_NORM_PRIORITY);
+  								  NULL, JVMTI_THREAD_NORM_PRIORITY);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 
   /* wait for debugger to begin execution */
@@ -309,8 +312,6 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   /* create raw monitor used for sync with the Lua environment */
   (*Gagent.jvmti)->CreateRawMonitor(Gagent.jvmti, "yellow_tree_lua", &Gagent.exec_monitor);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-
-  lua_interface_init(Gagent.jvmti, Gagent.exec_monitor);
 
   return JNI_OK;
 }

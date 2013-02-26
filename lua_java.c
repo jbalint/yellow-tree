@@ -940,11 +940,20 @@ static int lj_get_field_modifiers_table(lua_State *L)
   return 1;
 }
 
-static int lj_resume_jvm_and_wait(lua_State *L)
+static int lj_jvm_resume(lua_State *L)
 {
   lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, exec_monitor);
   lj_check_jvmti_error(L);
   lj_err = (*lj_jvmti)->RawMonitorNotify(lj_jvmti, exec_monitor);
+  lj_check_jvmti_error(L);
+  lj_err = (*lj_jvmti)->RawMonitorExit(lj_jvmti, exec_monitor);
+  lj_check_jvmti_error(L);
+  return 0;
+}
+
+static int lj_jvm_wait(lua_State *L)
+{
+  lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, exec_monitor);
   lj_check_jvmti_error(L);
   lj_err = (*lj_jvmti)->RawMonitorWait(lj_jvmti, exec_monitor, 0);
   lj_check_jvmti_error(L);
@@ -1010,11 +1019,13 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 				 jmethodID method_id, jlocation location)
 {
   int ref = lj_jvmti_callbacks.cb_breakpoint_ref;
-  lua_State *L = lj_L;
+  lua_State *L;
   int break_to_command_loop;
 
   if (ref == LUA_NOREF)
     return;
+
+  L = lua_newthread(lj_L);
 
   lj_jni = jni;
   lj_current_thread = thread;
@@ -1027,6 +1038,7 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   luaL_checktype(L, 1, LUA_TBOOLEAN);
   break_to_command_loop = lua_toboolean(L, -1);
   lua_pop(L, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
   if (break_to_command_loop)
   {
     /* semantically makes sense, but method name doesn't match...
@@ -1034,7 +1046,7 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
        wait for the command loop to notify() us back and resume
        execution */
     lj_jni = lj_cl_jni;
-    lj_resume_jvm_and_wait(L);
+    lj_jvm_wait(L);
   }
 }
 
@@ -1046,11 +1058,13 @@ Code copied from cb_breakpoint
 
   */
   int ref = lj_jvmti_callbacks.cb_method_entry_ref;
-  lua_State *L = lj_L;
+  lua_State *L;
   int break_to_command_loop;
 
   if (ref == LUA_NOREF)
     return;
+
+  L = lua_newthread(lj_L);
 
   lj_jni = jni;
   lj_current_thread = thread;
@@ -1062,6 +1076,7 @@ Code copied from cb_breakpoint
   luaL_checktype(L, 1, LUA_TBOOLEAN);
   break_to_command_loop = lua_toboolean(L, -1);
   lua_pop(L, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
   if (break_to_command_loop)
   {
     /* semantically makes sense, but method name doesn't match...
@@ -1069,7 +1084,7 @@ Code copied from cb_breakpoint
        wait for the command loop to notify() us back and resume
        execution */
     lj_jni = lj_cl_jni;
-    lj_resume_jvm_and_wait(L);
+    lj_jvm_wait(L);
   }
 }
 
@@ -1082,11 +1097,13 @@ Code copied from cb_breakpoint
 
   */
   int ref = lj_jvmti_callbacks.cb_method_exit_ref;
-  lua_State *L = lj_L;
+  lua_State *L;
   int break_to_command_loop;
 
   if (ref == LUA_NOREF)
     return;
+
+  L = lua_newthread(lj_L);
 
   lj_jni = jni;
   lj_current_thread = thread;
@@ -1100,6 +1117,7 @@ Code copied from cb_breakpoint
   luaL_checktype(L, 1, LUA_TBOOLEAN);
   break_to_command_loop = lua_toboolean(L, -1);
   lua_pop(L, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
   if (break_to_command_loop)
   {
     /* semantically makes sense, but method name doesn't match...
@@ -1107,7 +1125,7 @@ Code copied from cb_breakpoint
        wait for the command loop to notify() us back and resume
        execution */
     lj_jni = lj_cl_jni;
-    lj_resume_jvm_and_wait(L);
+    lj_jvm_wait(L);
   }
 }
 
@@ -1120,11 +1138,13 @@ Code copied from cb_breakpoint
 
   */
   int ref = lj_jvmti_callbacks.cb_single_step_ref; /**/
-  lua_State *L = lj_L;
+  lua_State *L;
   int break_to_command_loop;
 
   if (ref == LUA_NOREF)
     return;
+
+  L = lua_newthread(lj_L);
 
   lj_jni = jni;
   lj_current_thread = thread;
@@ -1137,6 +1157,7 @@ Code copied from cb_breakpoint
   luaL_checktype(L, 1, LUA_TBOOLEAN);
   break_to_command_loop = lua_toboolean(L, -1);
   lua_pop(L, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
   if (break_to_command_loop)
   {
     /* semantically makes sense, but method name doesn't match...
@@ -1144,7 +1165,7 @@ Code copied from cb_breakpoint
        wait for the command loop to notify() us back and resume
        execution */
     lj_jni = lj_cl_jni;
-    lj_resume_jvm_and_wait(L);
+    lj_jvm_wait(L);
   }
 }
 
@@ -1330,7 +1351,8 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_field",                  lj_get_field);
   lua_register(L, "lj_get_field_modifiers",        lj_get_field_modifiers);
   lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
-  lua_register(L, "lj_resume_jvm_and_wait",        lj_resume_jvm_and_wait);
+  lua_register(L, "lj_jvm_resume",                 lj_jvm_resume);
+  lua_register(L, "lj_jvm_wait",                   lj_jvm_wait);
   lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
   lua_register(L, "lj_get_line_number_table",      lj_get_line_number_table);
 
