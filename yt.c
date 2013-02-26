@@ -66,17 +66,6 @@ check_jvmti_error(jvmtiEnv *jvmti, jvmtiError jerr)
 static char
 event_states[JVMTI_MAX_EVENT_TYPE_VAL - JVMTI_MIN_EVENT_TYPE_VAL];
 
-static jvmtiError
-event_change(jvmtiEnv *jvmti, jvmtiEventMode mode,
-			 jvmtiEvent type, jthread thread)
-{
-  jvmtiError jerr = (*jvmti)->SetEventNotificationMode(jvmti, mode, type, thread);
-  check_jvmti_error(jvmti, jerr);
-  if(jerr == JVMTI_ERROR_NONE)
-	event_states[type - JVMTI_MIN_EVENT_TYPE_VAL] = mode;
-  return jerr;
-}
-
 static void
 step_next_line(JNIEnv *env, int intomethod)
 {
@@ -227,6 +216,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 
   /* Enable event notifications (these must be set in live phase) */
   EV_ENABLE(BREAKPOINT);
+
 #ifndef _WIN32
   /* This needs to be fixed to avoid JVMTI_ERROR_UNATTACHED_THREAD
 	 when dumping first stack from in lua_command_loop() */

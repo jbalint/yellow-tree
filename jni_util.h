@@ -18,6 +18,8 @@ typedef struct {
 jvmtiError free_jvmti_refs(jvmtiEnv *jvmti, ...);
 jint method_find_line_bci(jvmtiEnv *jvmti, method_decl *method, jint linenum);
 jvmtiEventCallbacks *get_jvmti_callbacks();
+jvmtiError event_change(jvmtiEnv *jvmti, jvmtiEventMode mode,
+			jvmtiEvent type, jthread thread);
 
 /* utility macros to check and clear exceptions on JNI env */
 #define EXCEPTION_CLEAR(JNI)				\

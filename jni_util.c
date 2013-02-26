@@ -64,3 +64,13 @@ jvmtiEventCallbacks *get_jvmti_callbacks()
 {
   return &jvmti_callbacks;
 }
+
+jvmtiError
+event_change(jvmtiEnv *jvmti, jvmtiEventMode mode,
+	     jvmtiEvent type, jthread thread)
+{
+  jvmtiError jerr = (*jvmti)->SetEventNotificationMode(jvmti, mode, type, thread);
+  /* if(jerr == JVMTI_ERROR_NONE) */
+  /*   event_states[type - JVMTI_MIN_EVENT_TYPE_VAL] = mode; */
+  return jerr;
+}
