@@ -57,13 +57,13 @@ static void lj_check_jvmti_error(lua_State *L)
   if(lj_err == JVMTI_ERROR_NONE)
     return;
 
-  fprintf(stderr, "Error %d from JVMTI", lj_err);
+  lj_print_message("Error %d from JVMTI", lj_err);
   if((*lj_jvmti)->GetErrorName(lj_jvmti, lj_err, &errmsg) == JVMTI_ERROR_NONE)
   {
-    fprintf(stderr, ": %s", errmsg);
+    lj_print_message(": %s", errmsg);
     (*lj_jvmti)->Deallocate(lj_jvmti, (unsigned char *)errmsg);
   }
-  fprintf(stderr, "\n");
+  lj_print_message("\n");
 
   if (IsDebuggerPresent())
     DebugBreak();
@@ -94,6 +94,11 @@ static void new_jfield_id(lua_State *L, jfieldID field_id, jclass class)
 static void new_jobject(lua_State *L, jobject object)
 {
   jobject *user_data;
+  if (!object)
+  {
+    lua_pushnil(L);
+    return;
+  }
   user_data = lua_newuserdata(L, sizeof(jobject));
   *user_data = object;
   lua_getfield(L, LUA_REGISTRYINDEX, "jobject_mt");
@@ -437,7 +442,7 @@ static int lj_pointer_to_string(lua_State *L)
   const void *p;
   p = lua_topointer(L, -1);
   lua_pop(L, 1);
-  sprintf(buf, "%p", p);
+  sprintf(buf, "%p", *(jobject *)p);
   lua_pushstring(L, buf);
   return 1;
 }
@@ -478,10 +483,7 @@ static int lj_find_class(lua_State *L)
 
   class = (*lj_jni)->FindClass(lj_jni, class_name);
   EXCEPTION_CHECK(lj_jni);
-  if (class)
-    new_jobject(L, class);
-  else
-    lua_pushnil(L);
+  new_jobject(L, class);
 
   return 1;
 }
@@ -1390,4 +1392,12 @@ void lj_set_jni(JNIEnv *jni)
 void lj_set_jvm_exec_monitor(jrawMonitorID mon)
 {
   exec_monitor = mon;
+}
+
+void lj_print_message(const char *format, ...)
+{
+  va_list ap;
+  va_start(ap, format);
+  vfprintf(stderr, format, ap);
+  va_end(ap);
 }

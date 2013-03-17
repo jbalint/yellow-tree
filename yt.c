@@ -15,6 +15,9 @@
 #include "myjni.h"
 #include "jni_util.h"
 
+#include "lua_interface.h"
+#include "lua_java.h"
+
 static struct agent_globals {
   jvmtiEnv *jvmti; /* global JVMTI reference */
   jvmtiError jerr; /* for convenience, NOT thread safe */
@@ -225,9 +228,9 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 
   lua_interface_init(Gagent.jvmti, Gagent.exec_monitor);
 
-  printf("-------====---------\n");
-  printf("Yellow Tree Debugger\n");
-  printf("-------====---------\n");
+  lj_print_message("-------====---------\n");
+  lj_print_message("Yellow Tree Debugger\n");
+  lj_print_message("-------====---------\n");
   fflush(stdout);
 
   /* start and run the debugger command loop */

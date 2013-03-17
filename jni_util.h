@@ -22,22 +22,24 @@ jvmtiError event_change(jvmtiEnv *jvmti, jvmtiEventMode mode,
 			jvmtiEvent type, jthread thread);
 
 /* utility macros to check and clear exceptions on JNI env */
-#define EXCEPTION_CLEAR(JNI)				\
-  do {										\
+#define EXCEPTION_CLEAR(JNI)			\
+  do {						\
     if((*(JNI))->ExceptionCheck(JNI)) {		\
       (*(JNI))->ExceptionClear(JNI);		\
-    }										\
+    }						\
   } while(0)
 
-#define EXCEPTION_CHECK(JNI)					\
-  do {											\
-    if ((*(JNI))->ExceptionCheck(JNI)) {		\
-      if(IsDebuggerPresent())											\
-		DebugBreak();													\
-      fprintf(stderr, "EXCEPTION EXISTS at %s:%d\n", __FILE__, __LINE__); \
-      (*(JNI))->ExceptionDescribe(JNI);									\
-      (*(JNI))->ExceptionClear(JNI);									\
-    }																	\
+#include "lua_java.h" /* co-dependency for lj_print_message... */
+
+#define EXCEPTION_CHECK(JNI)						\
+  do {									\
+    if ((*(JNI))->ExceptionCheck(JNI)) {				\
+      if(IsDebuggerPresent())						\
+	DebugBreak();							\
+      lj_print_message("EXCEPTION EXISTS at %s:%d\n", __FILE__, __LINE__); \
+      (*(JNI))->ExceptionDescribe(JNI);					\
+      (*(JNI))->ExceptionClear(JNI);					\
+    }									\
   } while(0)
 
 #endif /* JNI_UTIL_H_ */

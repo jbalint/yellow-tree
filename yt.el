@@ -92,6 +92,13 @@
 
 ;;   [0] Test;.main([Ljava/lang/String;)V - 0 (Test.java:11)
 (defun gud-yt-marker-filter (string)
+  ;; 1 = possible *, indicating current stack frame
+  ;; 2 = frame number in brackets, e.g. [1]
+  ;; 3 = class name, everything up to `.'
+  ;;     and method name and args
+  ;; 4 = bytecode location
+  ;; 5 = filename and line number
+  ;;                 1    2             3                   4      5
   (if (string-match "\\*? +\\[[0-9]+\\] \\(.*?\\)..*?(.*? - [0-9]+ (\\(.*?\\):\\(-?[0-9]+\\))" string)
       (let* ((classname (match-string 1 string))
 	     (filename (match-string 2 string))
@@ -110,7 +117,7 @@
   (let ((sig (current-internal-method-signature)))
     ;; comint-simple-send ?
     (if sig (process-send-string (get-buffer-process gud-comint-buffer)
-				 (concat "stop in " sig ":"
+				 (concat "bp(" sig ","
 					 (number-to-string (line-number-at-pos))
 					 "\n")))))
 
