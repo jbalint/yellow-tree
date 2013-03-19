@@ -1398,6 +1398,7 @@ void lj_print_message(const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  vfprintf(stderr, format, ap);
+  vprintf(format, ap);
+  fflush(stdout);
   va_end(ap);
 }
