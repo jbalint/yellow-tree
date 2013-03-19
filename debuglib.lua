@@ -19,20 +19,14 @@ breakpoints = {}
 single_step_location = nil
 single_step_method_id = nil
 
+-- i/o
+dbgio = require("network_io")
+
 -- ============================================================
 -- Main command loop
 -- ============================================================
 function command_loop()
-   while true do
-      io.write("yt> ")
-      io.flush()
-      local cmd = io.read("*line")
-      local chunk = load(cmd)
-      local success, m2 = pcall(chunk)
-      if not success then
-	 print("Error: " .. m2)
-      end
-   end
+   dbgio:command_loop()
 end
 
 -- ============================================================
@@ -49,7 +43,7 @@ end
 -- Help
 -- ============================================================
 function help()
-   print("Help is on the way...")
+   dbgio:print("Help is on the way...")
 end
 
 -- ============================================================
@@ -59,7 +53,7 @@ function where()
    local frame_count = lj_get_frame_count()
 
    if frame_count == 0 then
-      print("No code running")
+      dbgio:print("No code running")
       return nil
    end
 
@@ -67,7 +61,7 @@ function where()
    for i = 1, frame_count do
       local f = lj_get_stack_frame(i)
       stack[i] = f
-      print(stack_frame_to_string(f))
+      dbgio:print(stack_frame_to_string(f))
    end
    return stack
 end
@@ -79,8 +73,8 @@ function locals()
    local frame = lj_get_stack_frame(depth)
    local var_table = frame.method_id.local_variable_table
    for k, v in pairs(var_table) do
-      print(string.format("%10s = %s", k,
-			  lj_get_local_variable(depth, v.slot, v.sig)))
+      dbgio:print(string.format("%10s = %s", k,
+				 lj_get_local_variable(depth, v.slot, v.sig)))
    end
 end
 
@@ -102,7 +96,7 @@ function next(num)
 
    -- TODO allow stepping up a frame....
    if not single_step_location then
-      print("Cannot step to next line")
+      dbgio:print("Cannot step to next line")
       return
    end
 
@@ -140,17 +134,17 @@ function frame(num)
    num = num or 1
    local frame_count = lj_get_frame_count()
    if num < 1 then
-      print("Invalid frame number " .. num)
+      dbgio:print("Invalid frame number " .. num)
       depth = 1
    elseif num > frame_count then
-      print("Invalid frame number " .. num)
+      dbgio:print("Invalid frame number " .. num)
       depth = frame_count
    else
       depth = num
    end
 
    local f = lj_get_stack_frame(depth)
-   print(stack_frame_to_string(f))
+   dbgio:print(stack_frame_to_string(f))
    return f
 end
 
@@ -173,7 +167,7 @@ function bp(method_decl, line_num)
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
       if bp.method_decl == b.method_decl and bp.line_num == b.line_num then
-	 print("Breakpoint already exists")
+	 dbgio:print("Breakpoint already exists")
 	 return
       end
    end
@@ -182,7 +176,7 @@ function bp(method_decl, line_num)
    b.method_id = lj_get_method_id(method.class, method.method, method.args, method.ret)
    lj_set_breakpoint(b.method_id, b.line_num)
    table.insert(breakpoints, b)
-   print("ok")
+   dbgio:print("ok")
 
    return b
 end
@@ -195,16 +189,16 @@ function bl(num)
    if num then
       local bp = breakpoints[num]
       if not bp then
-	 print("Invalid breakpoint")
+	 dbgio:print("Invalid breakpoint")
 	 return
       end
-      print(string.format("%4d: %s", num, bp))
+      dbgio:print(string.format("%4d: %s", num, bp))
       return bp
    end
 
    -- print all
    if #breakpoints == 0 then
-      print("No breakpoints")
+      dbgio:print("No breakpoints")
       return
    end
    for idx, bp in ipairs(breakpoints) do
@@ -240,8 +234,8 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
-   print()
-   print(stack_frame_to_string(lj_get_stack_frame(1)))
+   dbgio:print()
+   dbgio:print(stack_frame_to_string(lj_get_stack_frame(1)))
    if bp.handler then
       -- allow bp handler if present
       return bp:handler()
@@ -264,7 +258,7 @@ function cb_single_step(thread, method_id, location)
       lj_clear_jvmti_callback("single_step")
       single_step_location = nil
       single_step_method_id = nil
-      print(stack_frame_to_string(lj_get_stack_frame(depth)))
+      dbgio:print(stack_frame_to_string(lj_get_stack_frame(depth)))
       return true
    else
       return false
@@ -389,13 +383,13 @@ function x()
    xconcat = lj_get_method_id("java/lang/String", "concat", "Ljava/lang/String;", "Ljava/lang/String;")
    test_bp = bp("Test.b(I)V")
    test_bp.handler = function(bp)
-      print("test_bp.handler")
-      print(string.format("bp=%s", bp))
-      print(string.format("a=%s", a))
+      dbgio:print("test_bp.handler")
+      dbgio:print(string.format("bp=%s", bp))
+      dbgio:print(string.format("a=%s", a))
       return false
    end
    bl()
-   print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
+   dbgio:print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
 end
 
 function run_tests()
