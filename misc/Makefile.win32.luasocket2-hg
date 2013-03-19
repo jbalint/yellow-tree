@@ -1,0 +1,21 @@
+CC = cl
+CFLAGS += /Zi /MTd
+CFLAGS += /DLUASOCKET_EXPORTS
+CFLAGS += "/DLUASOCKET_API=__declspec(dllexport)"
+CFLAGS += /DLUASOCKET_DEBUG
+CFLAGS += /ID:/sw/inst/lua-5.2.1/include
+# see http://lua-users.org/lists/lua-l/2011-07/msg00708.html
+CFLAGS += /DluaL_reg=luaL_Reg
+
+CFLAGS += /DLUA_COMPAT_MODULE
+
+.SUFFIXES: .obj .c
+.c.obj:
+	$(CC) $(CFLAGS) /c $<
+
+socket/core.dll: luasocket.obj timeout.obj buffer.obj io.obj auxiliar.obj options.obj inet.obj tcp.obj udp.obj except.obj select.obj wsocket.obj lua_typeerror.obj jess_socket_gaistrerror.obj
+	-md socket
+	link /IMPLIB:socket/core.lib /DLL /DEBUG /OUT:socket/core.dll /INCREMENTAL:NO ws2_32.lib D:/sw/inst/lua-5.2.1/src/lua52.lib $^
+
+clean:
+	rm *.obj socket/core.dll

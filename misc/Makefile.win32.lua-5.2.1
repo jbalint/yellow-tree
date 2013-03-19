@@ -1,0 +1,15 @@
+CC = cl
+CFLAGS += /Zi /MTd
+CFLAGS += /DLUA_COMPAT_ALL
+CFLAGS += /DLUA_BUILD_AS_DLL
+CFLAGS += /DLUA_USE_APICHECK
+
+.SUFFIXES: .obj .c
+.c.obj:
+	$(CC) $(CFLAGS) /c $<
+
+lua.dll: lapi.obj lauxlib.obj lbaselib.obj lbitlib.obj lcode.obj lcorolib.obj lctype.obj ldblib.obj ldebug.obj ldo.obj ldump.obj lfunc.obj lgc.obj linit.obj liolib.obj llex.obj lmathlib.obj lmem.obj loadlib.obj lobject.obj lopcodes.obj loslib.obj lparser.obj lstate.obj lstring.obj lstrlib.obj ltable.obj ltablib.obj ltm.obj lundump.obj lvm.obj lzio.obj
+	link /IMPLIB:lua52.lib /DLL /DEBUG /OUT:lua52.dll /INCREMENTAL:NO $^
+
+clean:
+	rm *.obj lua52.dll
