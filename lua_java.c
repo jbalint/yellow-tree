@@ -488,7 +488,14 @@ static int lj_find_class(lua_State *L)
   return 1;
 }
 
-/* first prototype of generic method calling */
+/**
+ * Calling a Java method requires the following parameters:
+ * - object - target of method call
+ * - method id
+ * - return type - I, STR, Ljava/lang/Object;, etc
+ * - arg count - number of arguments
+ * - arguments(varargs...) - pairs of type/arg
+ */
 static int lj_call_method(lua_State *L)
 {
   jobject object;
@@ -523,9 +530,15 @@ static int lj_call_method(lua_State *L)
   for (i = 0; i < argcount; ++i)
   {
     argtype = luaL_checkstring(L, param_num++);
-    if (!strcmp("L", argtype))
+    assert(argtype);
+    if (!strcmp("V", argtype))
     {
-      jargs[i].l = luaL_checkudata(L, param_num++, "jobject_mt");
+      jargs[i].l = NULL;
+      param_num++; /* skip the nil */
+    }
+    else if ('L' == argtype[0])
+    {
+      jargs[i].l = *(jobject *)luaL_checkudata(L, param_num++, "jobject_mt");
     }
     else if (!strcmp("STR", argtype)) /* TODO non-standard indicator */
     {
@@ -553,7 +566,7 @@ static int lj_call_method(lua_State *L)
     }
   }
 
-  lua_pop(L, argcount + 4);
+  lua_pop(L, (2 * argcount) + 4);
 
   /* call method - in order shown in JNI docs*/
   if (!strcmp("V", ret))

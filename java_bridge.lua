@@ -127,6 +127,14 @@ jobject_mt.__index = function(object, key)
    if lj_toString(class) == "class java.lang.Class" then
       if key == "sourcefile" then
 	 return lj_get_source_filename(object)
+      elseif key == "isAssignableFrom" then
+	 -- handled manually to prevent recursion in generic method calling
+	 local isAssignableFromMethod = function(c2)
+	    return lj_call_method(object,
+				  lj_get_method_id("java/lang/Class", "isAssignableFrom", "Ljava/lang/Class;", "Z"),
+				  "Z", 1, "Ljava/lang/Class;", c2)
+	 end
+	 return isAssignableFromMethod
       end
    end
 
@@ -183,7 +191,7 @@ end
 function new_jcallable_method(object, possible_methods)
    local jcm = {}
    local mt = {
-      __call = function(...) return call_java_method(object, possible_methods, arg) end
+      __call = function(t, ...) return call_java_method(object, possible_methods, {...}) end
    }
    return setmetatable(jcm, mt)
 end
@@ -192,13 +200,62 @@ end
 -- perform the actual method call. this will match the `args'
 -- to one of the `possible_methods'
 function call_java_method(object, possible_methods, args)
-   local method_id = nil
-   if #possible_methods == 1 then
-      method_id = possible_methods[1]
-   elseif #possible_methods > 1 then
-      method_id = possible_methods[1]
+   local argc = #args
+   -- filter out non-matching methods
+   local possible2 = {}
+   --.... this loop only exists because there is no "continue" in lua
+   for i,m in ipairs(possible_methods) do
+      -- short circuit match for no args
+      if #args == 0 and m.args == "" then
+	 return lj_call_method(object, m, get_ret_type(m), 0)
+      end
+
+      -- we can't handle array args, so....
+      if not string.find(m.args, "[", 1, true) and
+	 -- only try to match methods with the same number of arguments
+	 #parse_arg_spec(m.args) == argc then
+	 table.insert(possible2, m)
+      end
+   end
+
+   -- try to match types with args
+   local jargs = {}
+   for i, m in ipairs(possible2) do
+      local atypes = parse_arg_spec(m.args)
+      for i, t in ipairs(atypes) do
+	 local argi = args[i]
+	 if argi == nil then
+	    table.insert(jargs, "V")
+	    table.insert(jargs, nil)
+	 elseif t == "Ljava/lang/String;" and type(argi) ~= "userdata" then
+	    table.insert(jargs, "STR")
+	    table.insert(jargs, string.format("%s", argi))
+	 elseif string.sub(t, 1, 1) == "L" and type(argi) == "userdata" and
+	    string.find(string.format("%s", argi), "jobject@") == 1 then
+	    local tc = lj_find_class(string.sub(t, 2, #t - 1))
+	    if tc.isAssignableFrom(argi.class) then
+	       table.insert(jargs, "L")
+	       table.insert(jargs, argi)
+	    end
+	 elseif (t == "I" or t == "J") and type(argi) == "number" then
+	    table.insert(jargs, t)
+	    table.insert(jargs, math.floor(argi))
+	 elseif (t == "F" or t == "D") and type(argi) == "number" then
+	    table.insert(jargs, t)
+	    table.insert(jargs, argi)
+	 end
+
+	 -- call only if all args matched
+	 if #jargs == (argc * 2) then
+	    return lj_call_method(object, m, get_ret_type(m), argc, unpack(jargs))
+	 end
+      end
       --print("more than one possible method, using: " .. method_id.name .. " from " .. lj_toString(method_id.class))
    end
+   error("No matching method for given arguments")
+end
+
+function get_ret_type(method_id)
    local ret = method_id.ret
    -- prefer to return a native string ONLY for this method
    if method_id.name == "toString" then
@@ -206,7 +263,28 @@ function call_java_method(object, possible_methods, args)
    elseif string.sub(ret, 1, 1) == "L" then
       ret = "L"
    end
-   return lj_call_method(object, method_id, ret, 0)
+   return ret
+end
+
+-- ============================================================
+-- parse an arg spec from a method signature into individual components
+function parse_arg_spec(argspec)
+   -- TODO array support needed here
+   if argspec == "" then return {} end
+   local argarray = {}
+   while argspec ~= "" do
+      local char1 = string.sub(argspec, 1, 1)
+      if char1 == "L" then
+	 local endi = string.find(argspec, ";")
+	 table.insert(argarray, string.sub(argspec, 1, endi))
+	 argspec = string.sub(argspec, endi + 1)
+      else
+	 -- assume primitive type (single char)
+	 table.insert(argarray, char1)
+	 argspec = string.sub(argspec, 2)
+      end
+   end
+   return argarray
 end
 
 print("java_bridge.lua - loaded with " .. _VERSION)

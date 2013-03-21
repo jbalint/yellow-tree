@@ -20,7 +20,7 @@ single_step_location = nil
 single_step_method_id = nil
 
 -- i/o
-dbgio = require("network_io")
+dbgio = require("console_io")
 
 -- ============================================================
 -- Main command loop
@@ -61,6 +61,7 @@ function where()
    for i = 1, frame_count do
       local f = lj_get_stack_frame(i)
       stack[i] = f
+      -- TODO limit frame count to prevent printing unreasonably large stacks
       dbgio:print(stack_frame_to_string(f))
    end
    return stack
@@ -382,7 +383,7 @@ function x()
    xtoUpperCase = lj_get_method_id("java/lang/String", "toUpperCase", "", "Ljava/lang/String;")
    xconcat = lj_get_method_id("java/lang/String", "concat", "Ljava/lang/String;", "Ljava/lang/String;")
    test_bp = bp("Test.b(I)V")
-   test_bp.handler = function(bp)
+   test_bp.handlerX = function(bp)
       dbgio:print("test_bp.handler")
       dbgio:print(string.format("bp=%s", bp))
       dbgio:print(string.format("a=%s", a))
@@ -390,6 +391,13 @@ function x()
    end
    bl()
    dbgio:print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
+   g()
+   print(this.polyMorphic1())
+   print(this.polyMorphic2(4))
+   print(this.polyMorphic3(19283))
+   print(this.polyMorphic3("99"))
+   print(this.polyMorphic4(12, this))
+   print(this.polyMorphic5(17, this))
 end
 
 function run_tests()
