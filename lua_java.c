@@ -495,11 +495,11 @@ static int lj_call_method(lua_State *L)
   jmethodID method_id;
   const char *args;
   const char *ret;
-  jobject val_l;
+  jvalue val;
   int argcount;
   int i;
   int param_num;
-  int result_count;
+  int result_count = 1;
 
   jvalue *jargs;
 
@@ -515,11 +515,6 @@ static int lj_call_method(lua_State *L)
   method_id = *(jmethodID *)luaL_checkudata(L, 2, "jmethod_id_mt");
   ret = luaL_checkstring(L, 3);
   argcount = luaL_checkinteger(L, 4);
-
-  if (!strcmp("V", ret))
-    result_count = 0;
-  else
-    result_count = 1;
 
   jargs = malloc(sizeof(jvalue) * argcount);
 
@@ -560,31 +555,73 @@ static int lj_call_method(lua_State *L)
 
   lua_pop(L, argcount + 4);
 
-  /* call method */
-  if (!strcmp("L", ret) || !strcmp("STR", ret))
-  {
-    val_l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
-    if (val_l)
-    {
-      if (!strcmp("L", ret))
-	new_jobject(L, val_l);
-      else
-	new_string(L, val_l);
-    }
-    else
-    {
-      lua_pushnil(L);
-    }
-  }
-  else if (!strcmp("V", ret))
+  /* call method - in order shown in JNI docs*/
+  if (!strcmp("V", ret))
   {
     (*lj_jni)->CallVoidMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    result_count = 0;
+  }
+  else if (!strcmp("L", ret) || !strcmp("STR", ret))
+  {
+    val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    if (!strcmp("L", ret))
+      new_jobject(L, val.l);
+    else
+      new_string(L, val.l);
+  }
+  else if (!strcmp("Z", ret))
+  {
+    val.z = (*lj_jni)->CallBooleanMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushboolean(L, val.z);
+  }
+  else if (!strcmp("B", ret))
+  {
+    val.b = (*lj_jni)->CallByteMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.b);
+  }
+  else if (!strcmp("C", ret))
+  {
+    val.c = (*lj_jni)->CallCharMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.c);
+  }
+  else if (!strcmp("S", ret))
+  {
+    val.s = (*lj_jni)->CallShortMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.s);
+  }
+  else if (!strcmp("I", ret))
+  {
+    val.i = (*lj_jni)->CallIntMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.i);
+  }
+  else if (!strcmp("J", ret))
+  {
+    val.j = (*lj_jni)->CallLongMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushinteger(L, val.j);
+  }
+  else if (!strcmp("F", ret))
+  {
+    val.f = (*lj_jni)->CallFloatMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushnumber(L, val.f);
+  }
+  else if (!strcmp("D", ret))
+  {
+    val.d = (*lj_jni)->CallDoubleMethodA(lj_jni, object, method_id, jargs);
+    EXCEPTION_CHECK(lj_jni);
+    lua_pushnumber(L, val.d);
   }
   else
   {
-    /* to keep lua_happy until other return types are implemented */
-    lua_pushnil(L);
+    luaL_error(L, "Unknown return type '%s", ret);
   }
 
   return result_count;
