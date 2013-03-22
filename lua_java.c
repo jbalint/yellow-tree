@@ -1341,41 +1341,6 @@ static int lj_clear_jvmti_callback(lua_State *L)
  /* /_/    \_\_|   |_____| *//* in more ways than one... */
 
 /* Lua API -> */
-  /* int lj_get_frame_count()
-     - return number of stack frames in current thread */
-  /* {class, method, source, line_num, sourcefile, method_id, depth}
-         lj_get_stack_frame(int frame_num)
-     - get a stack frame in current thread */
-  /* void lj_set_breakpoint(jmethod_id method_id, int lin_num)
-     - set a breakpoint */
-  /* [{name, sig, start_location, slot}] lj_get_local_variable_table(jmethod_id method_id)
-     - get the local variable table for the specified method */
-  /* jthread lj_get_current_thread()
-     - get a reference to the current thread */
-  /* jmethod_id lj_get_method_id(char *class_name, char *method_name, char *args, char *ret)
-     - get a method_id */
-  /* X lj_get_local_variable(int depth, int slot, char *type)
-     - get value of a local variable */
-  /* char *lj_point_to_string(void *user_data)
-     - create a string from a user_data pointer */
-  /* [jmethod_id] lj_get_class_methods(jclass class)
-     - get methods declared on given class */
-  /* jclass lj_find_class(char *class_name)
-     - find a class given string in format pkg/Class */
-  /* lj_call_method(...) */
-  /* char *lj_toString(jobject object)
-     - call object.toString() */
-  /* {name, sig} lj_get_method_name(jmethod_id method_id)
-     - get method name and signature */
-  /* jclass lj_get_method_declaring_class(jmethod_id method_id)
-     - get class that declares the given method */
-  /* lj_get_field_name */
-  /* lj_get_field_declaring_class */
-  /* lj_get_field_id */
-  /* lj_get_class_fields */
-  /* lj_get_field */
-  /* lj_get_field_modifiers */
-  /* lj_get_field_modifiers_table */
 
 void lj_init(lua_State *L, jvmtiEnv *jvmti)
 {
@@ -1410,16 +1375,6 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
 
   lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
   lua_register(L, "lj_clear_jvmti_callback",       lj_clear_jvmti_callback);
-
-  /* add Java type metatables to registry for luaL_checkdata() convenience */
-  lua_getglobal(L, "java_bridge");
-  lua_getfield(L, -1, "jmethod_id_mt");
-  lua_setfield(L, LUA_REGISTRYINDEX, "jmethod_id_mt");
-  lua_getfield(L, -1, "jfield_id_mt");
-  lua_setfield(L, LUA_REGISTRYINDEX, "jfield_id_mt");
-  lua_getfield(L, -1, "jobject_mt");
-  lua_setfield(L, LUA_REGISTRYINDEX, "jobject_mt");
-  lua_pop(L, 1); /* java_bridge */
 
   /* clear callback refs */
   lj_jvmti_callbacks.cb_breakpoint_ref = LUA_NOREF;
