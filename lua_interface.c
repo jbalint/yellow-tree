@@ -20,13 +20,7 @@ void lua_interface_init(jvmtiEnv *jvmti, jrawMonitorID mon)
     abort();
   }
   luaL_openlibs(lua_state);
-  if (luaL_dostring(lua_state, "require('java_bridge')"))
-  {
-    fprintf(stderr, "Failed to load java_bridge.lua: %s\n", lua_tostring(lua_state, -1));
-    abort();
-  }
-  /* this must be called AFTER java_bridge.lua is loaded so the metatables for the Java types
-     are created */
+
   lj_init(lua_state, jvmti);
   /* this must be called AFTER lj_init() so the JVMTI callbacks can be registered */
   if (luaL_dostring(lua_state, "require('debuglib')"))
