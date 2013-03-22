@@ -123,15 +123,21 @@ jobject_mt.__index = function(object, key)
       return lj_get_class_methods(class)
    end
 
-   -- special field for "class" objects
+   -- special fields for "class" objects
    if lj_toString(class) == "class java.lang.Class" then
       if key == "sourcefile" then
 	 return lj_get_source_filename(object)
+      elseif key == "name" then
+	 -- name is a transient and cached property in java.lang.Class, don't access it directly
+	 -- c.f. Class.java source
+	 return object.getName()
       elseif key == "isAssignableFrom" then
 	 -- handled manually to prevent recursion in generic method calling
 	 local isAssignableFromMethod = function(c2)
 	    return lj_call_method(object,
-				  lj_get_method_id("java/lang/Class", "isAssignableFrom", "Ljava/lang/Class;", "Z"),
+				  lj_get_method_id("java/lang/Class",
+						   "isAssignableFrom",
+						   "Ljava/lang/Class;", "Z"),
 				  "Z", 1, "Ljava/lang/Class;", c2)
 	 end
 	 return isAssignableFromMethod
