@@ -31,8 +31,15 @@ void lua_interface_init(jvmtiEnv *jvmti, jrawMonitorID mon)
   lj_set_jvm_exec_monitor(mon);
 }
 
-void lua_command_loop(JNIEnv *jni)
+void lua_start(JNIEnv *jni, const char *opts)
 {
   lj_set_jni(jni);
-  luaL_dostring(lua_state, "command_loop()");
+  lua_getglobal(lua_state, "setopts"); /* from debuglib.lua */
+  lua_pushstring(lua_state, opts);
+  if (lua_pcall(lua_state, 1, 0, 0))
+  {
+    fprintf(stderr, "Error setting options: %s\n", lua_tostring(lua_state, -1));
+    lua_pop(lua_state, 1);
+  }
+  luaL_dostring(lua_state, "start()");
 }

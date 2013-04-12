@@ -11,6 +11,9 @@
 
 require("java_bridge")
 
+-- options
+options = {}
+
 -- current stack depth
 depth = 1
 
@@ -25,9 +28,9 @@ single_step_method_id = nil
 dbgio = require("console_io")
 
 -- ============================================================
--- Main command loop
+-- Starts debugger
 -- ============================================================
-function command_loop()
+function start()
    dbgio:command_loop()
 end
 
@@ -278,6 +281,31 @@ end
  -- | |  | | __| | / __|
  -- | |__| | |_| | \__ \
  --  \____/ \__|_|_|___/
+
+-- ============================================================
+-- parse debugger options
+-- formatted like opt1=val1,opt2=val2
+function setopts(optstring)
+   if #optstring == 0 then
+      return
+   end
+   -- separator location or nil if single param
+   local seploc = string.find(optstring, ",")
+   local opt
+   if seploc then
+      opt = string.sub(optstring, 1, seploc - 1)
+      setopts(string.sub(optstring, seploc + 1))
+   else
+      opt = optstring
+   end
+   -- parse option key and value
+   seploc = string.find(opt, "=")
+   if not seploc then
+      dbgio:print("Invalid option: ", opt)
+      return
+   end
+   options[string.sub(opt, 1, seploc - 1)] = string.sub(opt, seploc + 1, -1)
+end
 
 -- ============================================================
 -- make locals available throughout

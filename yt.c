@@ -18,6 +18,8 @@
 #include "lua_interface.h"
 #include "lua_java.h"
 
+static const char *agent_options;
+
 static struct agent_globals {
   jvmtiEnv *jvmti; /* global JVMTI reference */
   jvmtiError jerr; /* for convenience, NOT thread safe */
@@ -66,130 +68,11 @@ check_jvmti_error(jvmtiEnv *jvmti, jvmtiError jerr)
   (Gagent.jerr = event_change(Gagent.jvmti, JVMTI_DISABLE, \
 							  JVMTI_EVENT_##EVTYPE, (EVTHR)))
 
-static char
-event_states[JVMTI_MAX_EVENT_TYPE_VAL - JVMTI_MIN_EVENT_TYPE_VAL];
-
-static void
-step_next_line(JNIEnv *env, int intomethod)
-{
-  /* TODO clean this up to only display the appropriate message(s) */
-  jint lines = 0;
-  jvmtiLineNumberEntry *linetable = NULL;
-  jmethodID curmid;
-  jthread thread = NULL;
-  jlocation bci;
-  jint i;
-  jint frames;
-  Gagent.jerr = (*Gagent.jvmti)->GetFrameLocation(Gagent.jvmti, thread,
-												  0 /* TODO any reason not to be zero? */,
-												  &curmid, &bci);
-  /* this will happen if 'step' at the very beginning of the program */
-  if(Gagent.jerr == JVMTI_ERROR_NO_MORE_FRAMES)
-  {
-	printf("Stepping with frame location unknown\n");
-  }
-  else
-  {
-	check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-	Gagent.jerr = (*Gagent.jvmti)->GetLineNumberTable(Gagent.jvmti, curmid, &lines, &linetable);
-	/* TODO test how this actually works */
-	if(Gagent.jerr == JVMTI_ERROR_NATIVE_METHOD)
-	  printf("Stepping through native method\n");
-	else
-	  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  }
-  Gagent.ss_mid = NULL;
-  Gagent.ss_target = 0;
-  Gagent.ss_destheight = 0;
-  Gagent.ss_canenter = intomethod;
-  for(i = 0; i < lines; ++i)
-  {
-	if(linetable[i].start_location > bci)
-	{
-	/*   printf("Stepping to line %d\n", linetable[i].line_number); */
-	  EV_ENABLET(SINGLE_STEP, thread);
-	  EV_ENABLET(METHOD_ENTRY, thread);
-	  Gagent.ss_mid = curmid;
-	  Gagent.ss_target = linetable[i].start_location;
-	  goto end;
-	}
-  }
-  Gagent.jerr = (*Gagent.jvmti)->GetFrameCount(Gagent.jvmti, thread, &frames);
-  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  Gagent.ss_destheight = frames - 1;
-  EV_ENABLET(METHOD_EXIT, thread);
-end:
-  free_jvmti_refs(Gagent.jvmti, linetable, (void *)-1);
-}
-
-static void JNICALL
-cbSingleStep(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
-			 jmethodID mid, jlocation location)
-{
-  if((Gagent.ss_mid && mid != Gagent.ss_mid) ||
-	 location < Gagent.ss_target)
-	return;
-  EV_DISABLET(SINGLE_STEP, thread);
-  EV_DISABLET(METHOD_ENTRY, thread);
-  lua_command_loop(jni);
-}
-
-static void JNICALL
-cbMethodEntry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID mid)
-{
-  jclass declcls;
-  char *clssig;
-  /**/
-  EV_DISABLET(SINGLE_STEP, thread);
-  EV_DISABLET(METHOD_ENTRY, thread);
-  if(Gagent.ss_canenter)
-  {
-	Gagent.jerr = (*Gagent.jvmti)->GetMethodDeclaringClass(Gagent.jvmti, mid, &declcls);
-	check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-	Gagent.jerr = (*Gagent.jvmti)->GetClassSignature(Gagent.jvmti, declcls, &clssig, NULL);
-	check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-	if(!strncmp(clssig, "Lsun/", 5) ||
-	   !strncmp(clssig, "Ljava/", 6))
-	{
-	  free_jvmti_refs(Gagent.jvmti, clssig, (void *)-1);
-	  EV_ENABLET(SINGLE_STEP, thread);
-	  EV_ENABLET(METHOD_ENTRY, thread);
-	  return;
-	}
-	free_jvmti_refs(Gagent.jvmti, clssig, (void *)-1);
-	/**/
-	lua_command_loop(jni);
-  }
-  else
-  {
-	EV_ENABLET(METHOD_EXIT, thread);
-	Gagent.jerr = (*Gagent.jvmti)->GetFrameCount(Gagent.jvmti, thread,
-												 &Gagent.ss_destheight);
-	check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-	Gagent.ss_destheight--;
-  }
-}
-
-static void JNICALL
-cbMethodExit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID mid,
-			 jboolean expopped, jvalue retval)
-{
-  jint frames;
-  Gagent.jerr = (*Gagent.jvmti)->GetFrameCount(Gagent.jvmti, thread, &frames);
-  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  /* wait til we've popped enough frames */
-  if(frames - 1 > Gagent.ss_destheight)
-	return;
-  EV_DISABLET(METHOD_EXIT, thread);
-  EV_ENABLET(SINGLE_STEP, thread);
-  EV_ENABLET(METHOD_ENTRY, thread);
-}
-
 #ifndef _WIN32
 static void
 signal_handler(int sig)
 {
-  lua_command_loop(Gagent.sigjni);
+  //TODO...?
 }
 
 static void
@@ -206,7 +89,7 @@ set_signal_handler()
 
 static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
 {
-  lua_command_loop(jni);
+  lua_start(jni, agent_options);
 }
 
 static void JNICALL
@@ -222,7 +105,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 
 #ifndef _WIN32
   /* This needs to be fixed to avoid JVMTI_ERROR_UNATTACHED_THREAD
-	 when dumping first stack from in lua_command_loop() */
+	 when dumping first stack from in Lua command loop */
   set_signal_handler();
 #endif
 
@@ -238,7 +121,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   assert(thread_class);
   thread_ctor = (*jni)->GetMethodID(jni, thread_class, "<init>", "(Ljava/lang/String;)V");
   assert(thread_ctor);
-  thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Lua Command Loop");
+  thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Lua Execution");
   assert(thread_name);
   agent_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, thread_name);
   assert(agent_thread);
@@ -269,9 +152,10 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   jint rc;
   jint jvmtiVer;
 
+  agent_options = options ? strdup(options) : "";
   evCbs = get_jvmti_callbacks();
 
-  memset(evCbs, 0, sizeof(evCbs));
+  memset(evCbs, 0, sizeof(*evCbs));
   memset(&caps, 0, sizeof(caps));
 
   evCbs->VMInit = cbVMInit;
