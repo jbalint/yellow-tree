@@ -27,11 +27,6 @@ static struct agent_globals {
   jmethodID ss_mid;
   jint ss_destheight; /* our destination stack height */
   int ss_canenter;
-  /* this is really not a good idea -
-	 last JNI env, used when debugger is interrupted by a signal
-	 1. last JNI could be from a thread that has since exited
-  */
-  JNIEnv *sigjni;
   jrawMonitorID exec_monitor;
 } Gagent;
 
@@ -68,25 +63,6 @@ check_jvmti_error(jvmtiEnv *jvmti, jvmtiError jerr)
   (Gagent.jerr = event_change(Gagent.jvmti, JVMTI_DISABLE, \
 							  JVMTI_EVENT_##EVTYPE, (EVTHR)))
 
-#ifndef _WIN32
-static void
-signal_handler(int sig)
-{
-  //TODO...?
-}
-
-static void
-set_signal_handler()
-{
-  struct sigaction act;
-  memset(&act, 0, sizeof(struct sigaction));
-  act.sa_handler = signal_handler;
-  sigemptyset(&act.sa_mask);
-  if(sigaction(SIGINT, &act, NULL))
-	fprintf(stderr, "Failed to modify signal disposition\n");
-}
-#endif /* !_WIN32 */
-
 static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
 {
   lua_start(jni, agent_options);
@@ -102,12 +78,6 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 
   /* Enable event notifications (these must be set in live phase) */
   EV_ENABLE(BREAKPOINT);
-
-#ifndef _WIN32
-  /* This needs to be fixed to avoid JVMTI_ERROR_UNATTACHED_THREAD
-	 when dumping first stack from in Lua command loop */
-  set_signal_handler();
-#endif
 
   lua_interface_init(Gagent.jvmti, Gagent.exec_monitor);
 
