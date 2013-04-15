@@ -228,7 +228,26 @@ end
 -- Clear breakpoint(s)
 -- ============================================================
 function bc(num)
-   -- TODO
+   -- clear all
+   if not num then
+      if #breakpoints == 0 then
+	 dbgio:print("No breakpoints")
+      end
+      for i = 1, #breakpoints do
+	 bc(1)
+      end
+      return
+   end
+
+   local b = breakpoints[num]
+   if not b then
+      dbgio:print("unknown breakpoint")
+      return
+   end
+   local desc = string.format("%s", b)
+   lj_clear_breakpoint(b.method_id, b.location)
+   table.remove(breakpoints, num)
+   dbgio:print("cleared ", desc)
 end
 
  --       ___      ____  __ _______ _____    _____      _ _ _                _        
