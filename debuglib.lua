@@ -178,17 +178,19 @@ function bp(method_decl, line_num)
       return disp
    end
 
+   local method = method_decl_parse(method_decl)
+   b.method_id = lj_get_method_id(method.class, method.method, method.args, method.ret)
+   b.location = method_location_for_line_num(b.method_id, b.line_num)
+
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
-      if bp.method_decl == b.method_decl and bp.line_num == b.line_num then
+      if bp.method_decl == b.method_decl and bp.location == b.location then
 	 dbgio:print("Breakpoint already exists")
 	 return
       end
    end
 
-   local method = method_decl_parse(method_decl)
-   b.method_id = lj_get_method_id(method.class, method.method, method.args, method.ret)
-   lj_set_breakpoint(b.method_id, b.line_num)
+   lj_set_breakpoint(b.method_id, b.location)
    table.insert(breakpoints, b)
    dbgio:print("ok")
 
@@ -388,6 +390,24 @@ function method_decl_parse(method_decl)
    md.ret = string.sub(method_decl, chars + 1) -- rest
 
    return md
+end
+
+-- ============================================================
+-- Find the location (offset) in a method for a given line number
+function method_location_for_line_num(method_id, line_num)
+   if not line_num then return -1 end
+   local lnt = method_id.line_number_table
+   if not lnt then return -1 end
+   for idx, ln in ipairs(lnt) do
+      if line_num == ln.line_num then
+	 return ln.location
+      elseif line_num < ln.line_num and idx > 1 then
+	 return lnt[idx-1].location
+      elseif line_num < ln.line_num then
+	 return 0
+      end
+   end
+   return lnt[#lnt].location
 end
 
 -- ============================================================

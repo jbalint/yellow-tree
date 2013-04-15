@@ -1,4 +1,7 @@
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <classfile_constants.h>
 
 #include "myjni.h"
@@ -196,16 +199,28 @@ static int lj_get_stack_frame(lua_State *L)
 static int lj_set_breakpoint(lua_State *L)
 {
   jmethodID method_id;
-  int line_num = 0;
-  jint bytecode_index = 0;
+  jlocation location;
 
   method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
-  line_num = luaL_checkinteger(L, 2);
+  location = luaL_checkinteger(L, 2);
   lua_pop(L, 2);
 
-  bytecode_index = method_find_line_bytecode_index(lj_jvmti, method_id, line_num);
+  lj_err = (*lj_jvmti)->SetBreakpoint(lj_jvmti, method_id, location);
+  lj_check_jvmti_error(L);
 
-  lj_err = (*lj_jvmti)->SetBreakpoint(lj_jvmti, method_id, bytecode_index);
+  return 0;
+}
+
+static int lj_clear_breakpoint(lua_State *L)
+{
+  jmethodID method_id;
+  jlocation location;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  location = luaL_checkinteger(L, 2);
+  lua_pop(L, 2);
+
+  lj_err = (*lj_jvmti)->ClearBreakpoint(lj_jvmti, method_id, location);
   lj_check_jvmti_error(L);
 
   return 0;
@@ -500,7 +515,6 @@ static int lj_call_method(lua_State *L)
 {
   jobject object;
   jmethodID method_id;
-  const char *args;
   const char *ret;
   jvalue val;
   int argcount;
@@ -511,12 +525,6 @@ static int lj_call_method(lua_State *L)
   jvalue *jargs;
 
   const char *argtype;
-
-  jint jarg_i;
-  jlong jarg_j;
-  jfloat jarg_f;
-  jdouble jarg_d;
-  jobject jarg_l;
 
   object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   method_id = *(jmethodID *)luaL_checkudata(L, 2, "jmethod_id_mt");
@@ -719,7 +727,6 @@ static int lj_get_method_declaring_class(lua_State *L)
 static int lj_get_field_name(lua_State *L)
 {
   lj_field_id *field_id;
-  jclass class;
   char *field_name;
   char *sig;
 
@@ -1350,6 +1357,7 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_frame_count",            lj_get_frame_count);
   lua_register(L, "lj_get_stack_frame",            lj_get_stack_frame);
   lua_register(L, "lj_set_breakpoint",             lj_set_breakpoint);
+  lua_register(L, "lj_clear_breakpoint",           lj_clear_breakpoint);
   lua_register(L, "lj_get_local_variable_table",   lj_get_local_variable_table);
   lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
   lua_register(L, "lj_get_method_id",              lj_get_method_id);

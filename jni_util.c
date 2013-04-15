@@ -33,33 +33,6 @@ jvmtiError free_jvmti_refs(jvmtiEnv *jvmti, ...)
   return jerr;
 }
 
-/*
- * Find the byte code index of a line number in a given method.
- */
-jint method_find_line_bytecode_index(jvmtiEnv *jvmti, jmethodID method_id, jint line_num)
-{
-  jint linescount;
-  jint bytecode_index = 0;
-  int i;
-  jvmtiLineNumberEntry *lines;
-  jvmtiError jerr;
-  jerr = (*jvmti)->GetLineNumberTable(jvmti, method_id, &linescount, &lines);
-  /* TODO don't check jvmti error for native methods, and not debug methods */
-  /* TODO check error */
-  /* if(check_jvmti_error(jvmti, jerr) != JVMTI_ERROR_NONE) */
-  /*   return 0; */
-  for(i = 0; i < linescount; ++i)
-  {
-    if(lines[i].line_number == line_num)
-    {
-      bytecode_index = lines[i].start_location;
-      break;
-    }
-  }
-  (*jvmti)->Deallocate(jvmti, (unsigned char *)lines);
-  return bytecode_index;
-}
-
 jvmtiEventCallbacks *get_jvmti_callbacks()
 {
   return &jvmti_callbacks;
