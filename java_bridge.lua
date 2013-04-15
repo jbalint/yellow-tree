@@ -17,8 +17,8 @@ local function find_methods(class, name)
    local superclass_method_id = lj_get_method_id("java/lang/Class", "getSuperclass", "", "Ljava/lang/Class;")
    while class do
       for idx, method_id in pairs(lj_get_class_methods(class)) do
-	 if method_id.name == name then
-	    --print(name .. " match for class " .. lj_toString(class))
+	 -- match literal method names or "new" for constructors
+	 if method_id.name == name or (method_id.name == "<init>" and name == "new") then
 	    methods[#methods+1] = method_id
 	 end
       end
@@ -48,6 +48,9 @@ local function get_ret_type(method_id)
    if method_id.name == "toString" then
       ret = "STR"
    elseif string.sub(ret, 1, 1) == "L" then
+      ret = "L"
+   -- return an object for constructors
+   elseif method_id.name == "<init>" then
       ret = "L"
    end
    return ret
@@ -193,6 +196,8 @@ jmethod_id_mt.__index = function(method_id, k)
 	 --print(string.format("local_variable_table nil: %s", method_id))
       end
       return locals
+   elseif k == "modifiers" then
+      return lj_get_method_modifiers_table(lj_get_method_modifiers(method_id))
    end
 end
 

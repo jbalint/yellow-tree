@@ -525,11 +525,15 @@ static int lj_call_method(lua_State *L)
   jvalue *jargs;
 
   const char *argtype;
+  char *method_name;
 
   object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   method_id = *(jmethodID *)luaL_checkudata(L, 2, "jmethod_id_mt");
   ret = luaL_checkstring(L, 3);
   argcount = luaL_checkinteger(L, 4);
+
+  (*lj_jvmti)->GetMethodName(lj_jvmti, method_id, &method_name, NULL, NULL);
+  lj_check_jvmti_error(L);
 
   jargs = malloc(sizeof(jvalue) * argcount);
 
@@ -585,7 +589,10 @@ static int lj_call_method(lua_State *L)
   }
   else if (!strcmp("L", ret) || !strcmp("STR", ret))
   {
-    val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
+	if (!strcmp("<init>", method_name))
+	  val.l = (*lj_jni)->NewObjectA(lj_jni, object, method_id, jargs);
+	else
+	  val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     if (!strcmp("L", ret))
       new_jobject(L, val.l);
@@ -644,6 +651,8 @@ static int lj_call_method(lua_State *L)
   {
     luaL_error(L, "Unknown return type '%s", ret);
   }
+
+  free_jvmti_refs(lj_jvmti, method_name, (void *)-1);
 
   return result_count;
 }
@@ -720,6 +729,62 @@ static int lj_get_method_declaring_class(lua_State *L)
   lj_check_jvmti_error(L);
 
   new_jobject(L, class);
+
+  return 1;
+}
+
+static int lj_get_method_modifiers(lua_State *L)
+{
+  jmethodID method_id;
+  jint modifiers;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->GetMethodModifiers(lj_jvmti, method_id, &modifiers);
+  lj_check_jvmti_error(L);
+
+  lua_pushinteger(L, modifiers);
+
+  return 1;
+}
+
+static int lj_get_method_modifiers_table(lua_State *L)
+{
+  lua_Integer modifiers;
+
+  modifiers = luaL_checkinteger(L, 1);
+  lua_pop(L, 1);
+
+  lua_newtable(L);
+
+  /* http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.6 */
+  lua_pushboolean(L, modifiers & JVM_ACC_PUBLIC);
+  lua_setfield(L, -2, "public");
+  lua_pushboolean(L, modifiers & JVM_ACC_PRIVATE);
+  lua_setfield(L, -2, "private");
+  lua_pushboolean(L, modifiers & JVM_ACC_PROTECTED);
+  lua_setfield(L, -2, "protected");
+  lua_pushboolean(L, modifiers & JVM_ACC_STATIC);
+  lua_setfield(L, -2, "static");
+
+  lua_pushboolean(L, modifiers & JVM_ACC_FINAL);
+  lua_setfield(L, -2, "final");
+  lua_pushboolean(L, modifiers & JVM_ACC_SYNCHRONIZED);
+  lua_setfield(L, -2, "synchronized");
+  lua_pushboolean(L, modifiers & JVM_ACC_BRIDGE);
+  lua_setfield(L, -2, "bridge");
+  lua_pushboolean(L, modifiers & JVM_ACC_VARARGS);
+  lua_setfield(L, -2, "varargs");
+
+  lua_pushboolean(L, modifiers & JVM_ACC_NATIVE);
+  lua_setfield(L, -2, "native");
+  lua_pushboolean(L, modifiers & JVM_ACC_ABSTRACT);
+  lua_setfield(L, -2, "abstract");
+  lua_pushboolean(L, modifiers & JVM_ACC_STRICT);
+  lua_setfield(L, -2, "strict");
+  lua_pushboolean(L, modifiers & JVM_ACC_SYNTHETIC);
+  lua_setfield(L, -2, "synthetic");
 
   return 1;
 }
@@ -959,6 +1024,7 @@ static int lj_get_field_modifiers_table(lua_State *L)
   /* do all this in C because there are no bitwise ops in Lua */
   lua_newtable(L);
 
+  /* http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.5 */
   lua_pushboolean(L, modifiers & JVM_ACC_PUBLIC);
   lua_setfield(L, -2, "public");
   lua_pushboolean(L, modifiers & JVM_ACC_PRIVATE);
@@ -970,29 +1036,11 @@ static int lj_get_field_modifiers_table(lua_State *L)
   lua_pushboolean(L, modifiers & JVM_ACC_FINAL);
   lua_setfield(L, -2, "final");
   lua_pushboolean(L, modifiers & JVM_ACC_SYNCHRONIZED);
-  lua_setfield(L, -2, "synchronized");
-  lua_pushboolean(L, modifiers & JVM_ACC_SUPER);
-  lua_setfield(L, -2, "super");
-  lua_pushboolean(L, modifiers & JVM_ACC_VOLATILE);
   lua_setfield(L, -2, "volatile");
-  lua_pushboolean(L, modifiers & JVM_ACC_BRIDGE);
-  lua_setfield(L, -2, "bridge");
   lua_pushboolean(L, modifiers & JVM_ACC_TRANSIENT);
   lua_setfield(L, -2, "transient");
-  lua_pushboolean(L, modifiers & JVM_ACC_VARARGS);
-  lua_setfield(L, -2, "varargs");
-  lua_pushboolean(L, modifiers & JVM_ACC_NATIVE);
-  lua_setfield(L, -2, "native");
-  lua_pushboolean(L, modifiers & JVM_ACC_INTERFACE);
-  lua_setfield(L, -2, "interface");
-  lua_pushboolean(L, modifiers & JVM_ACC_ABSTRACT);
-  lua_setfield(L, -2, "abstract");
-  lua_pushboolean(L, modifiers & JVM_ACC_STRICT);
-  lua_setfield(L, -2, "strict");
   lua_pushboolean(L, modifiers & JVM_ACC_SYNTHETIC);
   lua_setfield(L, -2, "synthetic");
-  lua_pushboolean(L, modifiers & JVM_ACC_ANNOTATION);
-  lua_setfield(L, -2, "annotation");
   lua_pushboolean(L, modifiers & JVM_ACC_ENUM);
   lua_setfield(L, -2, "enum");
 
@@ -1369,6 +1417,8 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lua_register(L, "lj_toString",                   lj_toString);
   lua_register(L, "lj_get_method_name",            lj_get_method_name);
   lua_register(L, "lj_get_method_declaring_class", lj_get_method_declaring_class);
+  lua_register(L, "lj_get_method_modifiers",       lj_get_method_modifiers);
+  lua_register(L, "lj_get_method_modifiers_table", lj_get_method_modifiers_table);
   lua_register(L, "lj_get_field_name",             lj_get_field_name);
   lua_register(L, "lj_get_field_declaring_class",  lj_get_field_declaring_class);
   lua_register(L, "lj_get_field_id",               lj_get_field_id);
