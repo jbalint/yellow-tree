@@ -31,6 +31,14 @@ dbgio = require("console_io")
 -- Starts debugger
 -- ============================================================
 function start()
+   if options.runfile then
+      local success, m2 = pcall(loadfile(options.runfile))
+      if not success then
+	 dbgio:print(string.format("Error running '%s': %s", options.runfile, m2))
+      end
+      g()
+      return
+   end
    dbgio:command_loop()
 end
 
@@ -103,7 +111,7 @@ function next(num)
    -- TODO allow stepping up a frame....
    if not single_step_location then
       dbgio:print("Cannot step to next line")
-      return
+      return nil
    end
 
    lj_set_jvmti_callback("single_step", cb_single_step)
