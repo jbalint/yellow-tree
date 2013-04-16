@@ -497,8 +497,17 @@ static int lj_find_class(lua_State *L)
   lua_pop(L, 1);
 
   class = (*lj_jni)->FindClass(lj_jni, class_name);
-  EXCEPTION_CHECK(lj_jni);
-  new_jobject(L, class);
+  if (class == NULL)
+  {
+	/* most of the time, we'll be getting NoClassDefFoundError.
+	   It's not worth the effort to detect and report other exceptions here... */
+	(*lj_jni)->ExceptionClear(lj_jni);
+	lua_pushnil(L);
+  }
+  else
+  {
+	new_jobject(L, class);
+  }
 
   return 1;
 }

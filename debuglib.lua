@@ -337,21 +337,74 @@ function setopts(optstring)
 end
 
 -- ============================================================
--- make locals available throughout
+-- "temporary" table to facilitate addressing Java classes
+-- in the form pkg.x.Class directly in Lua
+function fq_class_search(pkg, previous_t)
+   local t = {}
+   t.pkg = pkg
+   if previous_t then
+      t.pkg = previous_t.pkg .. "." .. t.pkg
+   end
+
+   local mt = getmetatable(t) or (setmetatable(t, {}) and getmetatable(t))
+   mt.__index = function(t, k)
+      local class = lj_find_class(string.gsub(t.pkg .. "." .. k, "[.]", "/"))
+      if class then
+	 -- we found a class
+	 return class
+      else
+	 -- search another level of packages
+	 return fq_class_search(k, t)
+      end
+   end
+   mt.__tostring = function(t)
+      return "fully qualified class search, pkg=" .. t.pkg
+   end
+   return t
+end
+
+-- ============================================================
+-- Find a local variable
+-- Return "value, k" if found, "nil, nil" otherwise
+function get_local_variable(k)
+   local frame = lj_get_stack_frame(depth)
+   if not frame then
+      return nil, nil
+   end
+   local locals = frame.method_id.local_variable_table
+   if not locals then
+      return nil, nil
+   end
+   local l = locals[k]
+   if l then
+      return lj_get_local_variable(depth, l.slot, l.sig), k
+   end
+end
+
+-- ============================================================
+-- make locals, Java classes, etc available throughout
 function init_locals_environment()
+   local java_pkg_tlds = {"java", "javax", "com", "org", "net", "testsuite"}
    local mt = getmetatable(_ENV) or (setmetatable(_ENV, {}) and getmetatable(_ENV))
    mt.__index = function(t, k)
-      local frame = lj_get_stack_frame(depth)
-      if not frame then
-	 return
-      end
-      local locals = frame.method_id.local_variable_table
-      if not locals then
-	 return
-      end
-      local l = locals[k]
-      if l then
-	 return lj_get_local_variable(depth, l.slot, l.sig)
+      -- find a local variable
+      local lv, name = get_local_variable(k)
+      if name then return lv end
+
+      -- TODO: try members of `this'
+
+      -- find a fully-qualified class
+      local class = lj_find_class(k)
+      if class then return class end
+
+      -- TODO: try class name without package
+
+      -- last possibility:
+      -- start com.*.Class search
+      for idx, tld in ipairs(java_pkg_tlds) do
+	 if k == tld then
+	    return fq_class_search(k, nil)
+	 end
       end
    end
    mt.__newindex = function(t, k, v)
