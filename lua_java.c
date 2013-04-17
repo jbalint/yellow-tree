@@ -110,7 +110,7 @@ static void new_jobject(lua_State *L, jobject object)
 
 static void new_string(lua_State *L, jstring string)
 {
-  const jbyte *utf_chars;
+  const char *utf_chars;
   utf_chars = (*lj_jni)->GetStringUTFChars(lj_jni, string, NULL);
   if (utf_chars)
   {
