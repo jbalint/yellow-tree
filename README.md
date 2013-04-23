@@ -2,6 +2,9 @@ yellow-tree
 ===========
 Yellow Tree is a Java debugger.
 
+See documentation:
+* [Java Bridge](java_bridge.md)
+
 Status
 ======
 As of April 2013, Yellow Tree is used on:
