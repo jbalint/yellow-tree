@@ -31,10 +31,14 @@ dbgio = require("console_io")
 -- Starts debugger
 -- ============================================================
 function start()
+   local x = function (err)
+	  dbgio:print("Error: ", err)
+	  dbgio:print(debug.traceback())
+   end
    if options.runfile then
-      local success, m2 = pcall(loadfile(options.runfile))
+      local success, m2 = xpcall(loadfile(options.runfile), x)
       if not success then
-	 dbgio:print(string.format("Error running '%s': %s", options.runfile, m2))
+		 dbgio:print(string.format("Error running '%s': %s", options.runfile, m2))
       end
       g()
       return
@@ -94,7 +98,9 @@ end
 
 -- ============================================================
 -- ============================================================
-function next(num)
+-- temporarily renamed from next() to next_line(),
+-- next() conflicts with lua interator function
+function next_line(num)
    num = num or 1
 
    -- find location of next line
@@ -387,6 +393,8 @@ function init_locals_environment()
    local java_pkg_tlds = {"java", "javax", "com", "org", "net", "testsuite"}
    local mt = getmetatable(_ENV) or (setmetatable(_ENV, {}) and getmetatable(_ENV))
    mt.__index = function(t, k)
+	  if not k then return nil end
+
       -- find a local variable
       local lv, name = get_local_variable(k)
       if name then return lv end
