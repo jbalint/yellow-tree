@@ -528,6 +528,7 @@ static int lj_call_method(lua_State *L)
   jvalue val;
   int argcount;
   int i;
+  int is_static;
   int param_num;
   int result_count = 1;
 
@@ -538,8 +539,9 @@ static int lj_call_method(lua_State *L)
 
   object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   method_id = *(jmethodID *)luaL_checkudata(L, 2, "jmethod_id_mt");
-  ret = luaL_checkstring(L, 3);
-  argcount = luaL_checkinteger(L, 4);
+  is_static = lua_toboolean(L, 3);
+  ret = luaL_checkstring(L, 4);
+  argcount = luaL_checkinteger(L, 5);
 
   (*lj_jvmti)->GetMethodName(lj_jvmti, method_id, &method_name, NULL, NULL);
   lj_check_jvmti_error(L);
@@ -550,7 +552,7 @@ static int lj_call_method(lua_State *L)
     memset(jargs, 0, sizeof(jvalue) * argcount);
   }
 
-  param_num = 5;
+  param_num = 6;
   /* get arguments */
   for (i = 0; i < argcount; ++i)
   {
@@ -591,22 +593,27 @@ static int lj_call_method(lua_State *L)
     }
   }
 
-  lua_pop(L, (2 * argcount) + 4);
+  lua_pop(L, (2 * argcount) + 5);
 
   memset(&val, 0, sizeof(val));
   /* call method - in order shown in JNI docs*/
   if (!strcmp("V", ret))
   {
-    (*lj_jni)->CallVoidMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      (*lj_jni)->CallStaticVoidMethodA(lj_jni, object, method_id, jargs);
+    else
+      (*lj_jni)->CallVoidMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     result_count = 0;
   }
   else if (!strcmp("L", ret) || !strcmp("STR", ret))
   {
     if (!strcmp("<init>", method_name))
-	  val.l = (*lj_jni)->NewObjectA(lj_jni, object, method_id, jargs);
-	else
-	  val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
+      val.l = (*lj_jni)->NewObjectA(lj_jni, object, method_id, jargs);
+    else if (is_static)
+      val.l = (*lj_jni)->CallStaticObjectMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     if (!strcmp("L", ret))
       new_jobject(L, val.l);
@@ -615,55 +622,79 @@ static int lj_call_method(lua_State *L)
   }
   else if (!strcmp("Z", ret))
   {
-    val.z = (*lj_jni)->CallBooleanMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.z = (*lj_jni)->CallStaticBooleanMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.z = (*lj_jni)->CallBooleanMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushboolean(L, val.z);
   }
   else if (!strcmp("B", ret))
   {
-    val.b = (*lj_jni)->CallByteMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.b = (*lj_jni)->CallStaticByteMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.b = (*lj_jni)->CallByteMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushinteger(L, val.b);
   }
   else if (!strcmp("C", ret))
   {
-    val.c = (*lj_jni)->CallCharMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.c = (*lj_jni)->CallStaticCharMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.c = (*lj_jni)->CallCharMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushinteger(L, val.c);
   }
   else if (!strcmp("S", ret))
   {
-    val.s = (*lj_jni)->CallShortMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.s = (*lj_jni)->CallStaticShortMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.s = (*lj_jni)->CallShortMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushinteger(L, val.s);
   }
   else if (!strcmp("I", ret))
   {
-    val.i = (*lj_jni)->CallIntMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.i = (*lj_jni)->CallStaticIntMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.i = (*lj_jni)->CallIntMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushinteger(L, val.i);
   }
   else if (!strcmp("J", ret))
   {
-    val.j = (*lj_jni)->CallLongMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.j = (*lj_jni)->CallStaticLongMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.j = (*lj_jni)->CallLongMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushinteger(L, val.j);
   }
   else if (!strcmp("F", ret))
   {
-    val.f = (*lj_jni)->CallFloatMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.f = (*lj_jni)->CallStaticFloatMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.f = (*lj_jni)->CallFloatMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushnumber(L, val.f);
   }
   else if (!strcmp("D", ret))
   {
-    val.d = (*lj_jni)->CallDoubleMethodA(lj_jni, object, method_id, jargs);
+    if (is_static)
+      val.d = (*lj_jni)->CallStaticDoubleMethodA(lj_jni, object, method_id, jargs);
+    else
+      val.d = (*lj_jni)->CallDoubleMethodA(lj_jni, object, method_id, jargs);
     EXCEPTION_CHECK(lj_jni);
     lua_pushnumber(L, val.d);
   }
   else
   {
-    luaL_error(L, "Unknown return type '%s", ret);
+    luaL_error(L, "Unknown return type '%s'", ret);
   }
 
   if (argcount > 0)

@@ -22,7 +22,7 @@ local function find_methods(class, name)
 	    table.insert(methods, method_id)
 	 end
       end
-      class = lj_call_method(class, superclass_method_id, "L", 0)
+      class = lj_call_method(class, superclass_method_id, false, "L", 0)
    end
    return methods
 end
@@ -37,7 +37,7 @@ local function find_field(class, name)
 	    return field_id
 	 end
       end
-      class = lj_call_method(class, superclass_method_id, "L", 0)
+      class = lj_call_method(class, superclass_method_id, false, "L", 0)
    end
    return nil
 end
@@ -81,11 +81,6 @@ end
 -- perform the actual method call. this will match the `args'
 -- to one of the `possible_methods'
 local function call_java_method(object, possible_methods, args)
-   -- local old_lj = lj_call_method
-   -- local function lj_call_method(a, b, c, d)
-   --    print("Calling: ", b.class, b.name)
-   --    return old_lj(a, b, c, d)
-   -- end
    local argc = #args
    -- filter out non-matching methods
    local possible2 = {}
@@ -93,7 +88,7 @@ local function call_java_method(object, possible_methods, args)
    for i,m in ipairs(possible_methods) do
       -- short circuit match for no args
       if #args == 0 and m.args == "" then
-	 return lj_call_method(object, m, get_ret_type(m), 0)
+	 return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), 0)
       end
 
       -- we can't handle array args, so....
@@ -133,7 +128,7 @@ local function call_java_method(object, possible_methods, args)
 
 	 -- call only if all args matched
 	 if #jargs == (argc * 2) then
-	    return lj_call_method(object, m, get_ret_type(m), argc, unpack(jargs))
+	    return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), argc, unpack(jargs))
 	 end
       end
       --print("more than one possible method, using: " .. method_id.name .. " from " .. lj_toString(method_id.class))
@@ -249,7 +244,7 @@ end
 jobject_mt.__index = function(object, key)
    -- we cannot use anything that would result in calling this function recursively
    local getclass_method_id = lj_get_method_id("java/lang/Object", "getClass", "", "Ljava/lang/Class;")
-   local class = lj_call_method(object, getclass_method_id, "L", 0)
+   local class = lj_call_method(object, getclass_method_id, false, "L", 0)
 
    if key == "class" then
       return class
@@ -266,7 +261,7 @@ jobject_mt.__index = function(object, key)
 			       lj_get_method_id("java/lang/Class",
 						"getName",
 						"", "Ljava/lang/String;"),
-			       "STR", 0)
+			       false, "STR", 0)
       elseif key == "isAssignableFrom" then
 	 -- handled manually to prevent recursion in generic method calling
 	 local isAssignableFromMethod = function(c2)
@@ -274,7 +269,7 @@ jobject_mt.__index = function(object, key)
 				  lj_get_method_id("java/lang/Class",
 						   "isAssignableFrom",
 						   "Ljava/lang/Class;", "Z"),
-				  "Z", 1, "Ljava/lang/Class;", c2)
+				  false, "Z", 1, "Ljava/lang/Class;", c2)
 	 end
 	 return isAssignableFromMethod
       end
@@ -292,7 +287,12 @@ jobject_mt.__index = function(object, key)
    end
 
    if key == "methods" then
-      return lj_get_class_methods(class)
+      local methods = {}
+      -- index by name, sig
+      for idx, method in pairs(lj_get_class_methods(class)) do
+	 methods[method.name .. method.sig] = method
+      end
+      return methods
    end
 
    local field_id = find_field(class, key)

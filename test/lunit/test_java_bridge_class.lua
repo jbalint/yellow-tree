@@ -64,3 +64,31 @@ function test_basic_field_access()
    assert_not_nil(f3)
    assert_not_equal(f3, f2)
 end
+
+function test_basic_method_access()
+   -- static method
+   local thread_class = java.lang.Thread
+   local currentThread_method = thread_class.methods["currentThread()Ljava/lang/Thread;"]
+   local currentThread = thread_class.currentThread()
+   assert_not_nil(currentThread_method)
+   assert_not_nil(currentThread)
+   assert_true(currentThread_method.modifiers.static)
+   assert_equal(java.lang.Thread, currentThread.class)
+
+   -- instance method
+   local getName_method = thread_class.methods["getName()Ljava/lang/String;"]
+   assert_not_nil(getName_method)
+   assert_false(getName_method.modifiers.static)
+   assert_true(getName_method.modifiers.public)
+   currentThread.setName("lunit_test!")
+   assert_equal("lunit_test!", currentThread.getName().toString())
+
+   -- equality
+   local m1 = java.lang.Thread.methods["getName()Ljava/lang/String;"]
+   local m2 = java.lang.Thread.methods["getName()Ljava/lang/String;"]
+   local m3 = java.lang.Thread.methods["setName(Ljava/lang/String;)V"]
+   assert_not_nil(m1)
+   assert_equal(m1, m2)
+   assert_not_nil(m3)
+   assert_not_equal(m1, m3)
+end
