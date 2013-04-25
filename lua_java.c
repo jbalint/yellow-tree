@@ -531,7 +531,7 @@ static int lj_call_method(lua_State *L)
   int param_num;
   int result_count = 1;
 
-  jvalue *jargs;
+  jvalue *jargs = NULL;
 
   const char *argtype;
   char *method_name;
@@ -544,7 +544,11 @@ static int lj_call_method(lua_State *L)
   (*lj_jvmti)->GetMethodName(lj_jvmti, method_id, &method_name, NULL, NULL);
   lj_check_jvmti_error(L);
 
-  jargs = malloc(sizeof(jvalue) * argcount);
+  if (argcount > 0)
+  {
+    jargs = malloc(sizeof(jvalue) * argcount);
+    memset(jargs, 0, sizeof(jvalue) * argcount);
+  }
 
   param_num = 5;
   /* get arguments */
@@ -589,6 +593,7 @@ static int lj_call_method(lua_State *L)
 
   lua_pop(L, (2 * argcount) + 4);
 
+  memset(&val, 0, sizeof(val));
   /* call method - in order shown in JNI docs*/
   if (!strcmp("V", ret))
   {
@@ -598,7 +603,7 @@ static int lj_call_method(lua_State *L)
   }
   else if (!strcmp("L", ret) || !strcmp("STR", ret))
   {
-	if (!strcmp("<init>", method_name))
+    if (!strcmp("<init>", method_name))
 	  val.l = (*lj_jni)->NewObjectA(lj_jni, object, method_id, jargs);
 	else
 	  val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
@@ -661,6 +666,8 @@ static int lj_call_method(lua_State *L)
     luaL_error(L, "Unknown return type '%s", ret);
   }
 
+  if (argcount > 0)
+    free(jargs);
   free_jvmti_refs(lj_jvmti, method_name, (void *)-1);
 
   return result_count;
@@ -922,7 +929,7 @@ static int lj_get_field(lua_State *L)
 				     NULL, &sig, NULL);
   lj_check_jvmti_error(L);
 
-  if (*sig == 'L')
+  if (*sig == 'L' || *sig == '[')
   {
     if (is_static)
       val.l = (*lj_jni)->GetStaticObjectField(lj_jni, object, field_id->field_id);
@@ -1002,6 +1009,11 @@ static int lj_get_field(lua_State *L)
       val.d = (*lj_jni)->GetDoubleField(lj_jni, object, field_id->field_id);
     EXCEPTION_CHECK(lj_jni);
     lua_pushnumber(L, val.d);
+  }
+  else
+  {
+    lj_print_message("Unknown return type '%s' for field\n", sig);
+    lua_pushnil(L);
   }
 
   return 1;

@@ -36,6 +36,11 @@ public class Test {
     public int polyMorphic5(int x, Object y) {
 	return 5;
     }
+    private int x = 0;
+    public Test() {
+	System.out.println("WELL the constructor was called!");
+	x = 150;
+    }
 	public static void main(String args[]) {
 		System.out.println("Jess");
 		a(32, 22, 12, 2);

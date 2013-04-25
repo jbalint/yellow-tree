@@ -19,7 +19,7 @@ local function find_methods(class, name)
       for idx, method_id in pairs(lj_get_class_methods(class)) do
 	 -- match literal method names or "new" for constructors
 	 if method_id.name == name or (method_id.name == "<init>" and name == "new") then
-	    methods[#methods+1] = method_id
+	    table.insert(methods, method_id)
 	 end
       end
       class = lj_call_method(class, superclass_method_id, "L", 0)
@@ -81,6 +81,11 @@ end
 -- perform the actual method call. this will match the `args'
 -- to one of the `possible_methods'
 local function call_java_method(object, possible_methods, args)
+   -- local old_lj = lj_call_method
+   -- local function lj_call_method(a, b, c, d)
+   --    print("Calling: ", b.class, b.name)
+   --    return old_lj(a, b, c, d)
+   -- end
    local argc = #args
    -- filter out non-matching methods
    local possible2 = {}
@@ -154,7 +159,7 @@ debug.getregistry()["jmethod_id_mt"] = jmethod_id_mt
 jmethod_id_mt.__tostring = function(method_id)
    return string.format("jmethod_id@%s %s.%s%s",
 			lj_pointer_to_string(method_id),
-			method_id.class.name.toString(),
+			method_id.class.name,
 			method_id.name,
 			method_id.sig)
 end
@@ -208,7 +213,7 @@ debug.getregistry()["jfield_id_mt"] = jfield_id_mt
 jfield_id_mt.__tostring = function(field_id)
    return string.format("jfield_id@%s %s.%s type=%s",
 			lj_pointer_to_string(field_id),
-			field_id.class.name.toString(),
+			field_id.class.name,
 			field_id.name,
 		        field_id.sig)
 end
@@ -270,7 +275,11 @@ jobject_mt.__index = function(object, key)
       elseif key == "name" then
 	 -- name is a transient and cached property in java.lang.Class, don't access it directly
 	 -- c.f. Class.java source
-	 return object.getName()
+	 return lj_call_method(object,
+			       lj_get_method_id("java/lang/Class",
+						"getName",
+						"", "Ljava/lang/String;"),
+			       "STR", 0)
       elseif key == "isAssignableFrom" then
 	 -- handled manually to prevent recursion in generic method calling
 	 local isAssignableFromMethod = function(c2)
@@ -282,20 +291,18 @@ jobject_mt.__index = function(object, key)
 	 end
 	 return isAssignableFromMethod
       end
+      -- NOTE: following this, object == class
+      class = object
+   end
+
+   local field_id = find_field(class, key)
+   if field_id then
+      return lj_get_field(object, field_id, field_id.modifiers.static)
    end
 
    local methods = find_methods(class, key)
    if #methods > 0 then
       return new_jcallable_method(object, methods)
-   end
-
-   local field_id = find_field(class, key)
-   if field_id then
-      if field_id.modifiers.static then
-	 return lj_get_field(object.class, field_id, true)
-      else
-	 return lj_get_field(object, field_id, false)
-      end
    end
 end
 
