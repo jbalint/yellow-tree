@@ -188,20 +188,10 @@ jmethod_id_mt.__index = function(method_id, k)
       elseif k == "ret" then
 	 return ret
       end
-   elseif k == "file" then
-      return lj_get_source_filename(method_id.class)
    elseif k == "line_number_table" then
-      local lnt = lj_get_line_number_table(method_id)
-      if not lnt then
-	 --print(string.format("line_number_table nil: %s", method_id))
-      end
-      return lnt
+      return lj_get_line_number_table(method_id)
    elseif k == "local_variable_table" then
-      local locals = lj_get_local_variable_table(method_id)
-      if not locals then
-	 --print(string.format("local_variable_table nil: %s", method_id))
-      end
-      return locals
+      return lj_get_local_variable_table(method_id)
    elseif k == "modifiers" then
       return lj_get_method_modifiers_table(lj_get_method_modifiers(method_id))
    end
@@ -219,9 +209,9 @@ jfield_id_mt.__tostring = function(field_id)
 		        field_id.sig)
 end
 jfield_id_mt.__eq = function(f1, f2)
-   return m1.name == m2.name and
-      m1.sig == m2.sig and
-      m1.class == m2.class
+   return f1.name == f2.name and
+      f1.sig == f2.sig and
+      f1.class == f2.class
 end
 jfield_id_mt.__index = function(field_id, k)
    if k == "name" then
@@ -265,14 +255,6 @@ jobject_mt.__index = function(object, key)
       return class
    end
 
-   if key == "fields" then
-      return lj_get_class_fields(class)
-   end
-
-   if key == "methods" then
-      return lj_get_class_methods(class)
-   end
-
    -- special fields for "class" objects
    if lj_toString(class) == "class java.lang.Class" then
       if key == "sourcefile" then
@@ -298,6 +280,19 @@ jobject_mt.__index = function(object, key)
       end
       -- NOTE: following this, object == class
       class = object
+   end
+
+   if key == "fields" then
+      local fields = {}
+      -- index by name
+      for idx, field in pairs(lj_get_class_fields(class)) do
+	 fields[field.name] = field
+      end
+      return fields
+   end
+
+   if key == "methods" then
+      return lj_get_class_methods(class)
    end
 
    local field_id = find_field(class, key)

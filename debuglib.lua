@@ -172,28 +172,42 @@ end
 -- Add a new breakpoint
 -- takes a method declaration, line number (can be 0)
 -- ============================================================
-function bp(method_decl, line_num)
+function bp(method, line_num)
    local b = {}
-   b.method_decl = method_decl
    b.line_num = line_num or 0
-   (getmetatable(b) or (setmetatable(b, {}) and getmetatable(b))).__tostring = function(bp)
-      local disp = string.format("%s", bp.method_decl)
-      if (bp.line_num) then
-	 disp = disp .. " (line " .. bp.line_num .. ")"
+
+   if type(method) == "string" then
+      local method_spec = method_decl_parse(method)
+      b.method_id = lj_get_method_id(method_spec.class, method_spec.method, method_spec.args, method_spec.ret)
+      if not b.method_id then
+	 error("Method not found")
       end
-      return disp
+   elseif type(method) == "userdata" then
+      b.method_id = method
+   else
+      error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a method_id object")
    end
 
-   local method = method_decl_parse(method_decl)
-   b.method_id = lj_get_method_id(method.class, method.method, method.args, method.ret)
    b.location = method_location_for_line_num(b.method_id, b.line_num)
 
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
-      if bp.method_decl == b.method_decl and bp.location == b.location then
+      if bp.method_id == b.method_id and bp.location == b.location then
 	 dbgio:print("Breakpoint already exists")
 	 return
       end
+   end
+
+   -- add tostring()
+   (getmetatable(b) or (setmetatable(b, {}) and getmetatable(b))).__tostring = function(bp)
+      local disp = string.format("%s.%s%s",
+				 bp.method_id.class.name,
+				 bp.method_id.name,
+				 bp.method_id.sig)
+      if (bp.line_num) then
+	 disp = disp .. " (line " .. bp.line_num .. ")"
+      end
+      return disp
    end
 
    lj_set_breakpoint(b.method_id, b.location)
@@ -435,7 +449,7 @@ function stack_frame_to_string(f)
 
    local disp = string.format("%6s %s.%s%s - %s (%s:%s)",
 			      "[" .. f.depth .. "]",
-			      f.method_id.class.getName().toString(),
+			      f.method_id.class.getName(),
 			      f.method_id.name,
 			      f.method_id.sig,
 			      f.location,

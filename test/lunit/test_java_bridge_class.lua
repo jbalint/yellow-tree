@@ -26,8 +26,41 @@ function test_basic_instantiation()
    assert_equal("Hello", copy_string.toString())
    assert_equal(str_string, copy_string)
 
+   -- ensure ctor is properly called
+   local test_o = BasicTestClass.new("the_val")
+   assert_not_nil(test_o)
+   assert_equal("the_val", test_o.myVal.toString())
+
    local success, error = pcall(function () print(java.lang.String.new(1,2,3,4,5)) end)
    if success then
       fail("Constructor call should fail if it doesn't exist")
    end
+end
+
+function test_basic_field_access()
+   -- static field
+   local string_class = java.lang.String
+   local cio_field = string_class.fields.CASE_INSENSITIVE_ORDER
+   local cio = string_class.CASE_INSENSITIVE_ORDER
+   assert_not_nil(cio_field)
+   assert_not_nil(cio)
+   assert_true(cio_field.modifiers.static)
+   assert_equal(java.lang["String$CaseInsensitiveComparator"], cio.class)
+
+   -- instance field
+   local test_o = BasicTestClass.new("the_val")
+   local myVal_field = BasicTestClass.fields.myVal
+   assert_not_nil(myVal_field)
+   assert_true(myVal_field.modifiers.private)
+   assert_equal("Ljava/lang/String;", myVal_field.sig)
+   assert_equal("the_val", test_o.myVal.toString())
+
+   -- equality
+   local f1 = java.lang.String.fields.value
+   local f2 = java.lang.String.fields.value
+   assert_not_nil(f1)
+   assert_equal(f1, f2)
+   local f3 = java.lang.String.fields.hash
+   assert_not_nil(f3)
+   assert_not_equal(f3, f2)
 end

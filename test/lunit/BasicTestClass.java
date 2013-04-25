@@ -1,3 +1,6 @@
+/**
+ * An class that arbitrary things can be done to for testing.
+ */
 public class BasicTestClass {
     public static String someStaticMethod(String smth) {
 	return "You passed: " + smth;
@@ -13,10 +16,7 @@ public class BasicTestClass {
     }
 
     public static void main(String args[]) throws Exception {
-	char [] s =  new char[0];
-	System.out.println("String length: " + s);
-	System.out.println("String length: " + s.length);
 	/* Allow tests to run */
-	Thread.sleep(5000);
+	Thread.sleep(3000);
     }
 }
