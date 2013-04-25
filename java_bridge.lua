@@ -146,6 +146,7 @@ end
 -- `possible_methods' on `object'
 local function new_jcallable_method(object, possible_methods)
    local jcm = {}
+   jcm.possible_methods = possible_methods
    local mt = {
       __call = function(t, ...) return call_java_method(object, possible_methods, {...}) end
    }
@@ -244,11 +245,15 @@ jobject_mt.__tostring = function(object)
 			lj_toString(object))
 end
 jobject_mt.__eq = function(o1, o2)
-   -- only handle class comparison
-   if lj_toString(o1.class) == "class java.lang.Class" then
+   local o1c, o2c = lj_toString(o1.class), lj_toString(o2.class)
+   if o1c ~= o2c then return false end
+
+   -- Class and String comparisons
+   if o1c == "class java.lang.Class" or o1c == "class java.lang.String" then
       return lj_toString(o1) == lj_toString(o2)
    end
 
+   -- TODO reference comparison? possible? useful? equals?
    return false
 end
 jobject_mt.__index = function(object, key)

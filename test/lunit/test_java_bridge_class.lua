@@ -24,8 +24,7 @@ function test_basic_instantiation()
    assert_equal("Hello", str_string.toString())
    local copy_string = java.lang.String.new(str_string)
    assert_equal("Hello", copy_string.toString())
-   -- TODO set this up
-   --assert_equal(str_string, copy_string)
+   assert_equal(str_string, copy_string)
 
    local success, error = pcall(function () print(java.lang.String.new(1,2,3,4,5)) end)
    if success then
