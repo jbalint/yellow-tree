@@ -284,6 +284,7 @@ function cb_breakpoint(thread, method_id, location)
    depth = 1
    local bp
    for idx, v in pairs(breakpoints) do
+      -- TODO and test location
       if v.method_id == method_id then
 	 bp = v
       end
@@ -449,7 +450,7 @@ function stack_frame_to_string(f)
 
    local disp = string.format("%6s %s.%s%s - %s (%s:%s)",
 			      "[" .. f.depth .. "]",
-			      f.method_id.class.getName(),
+			      f.method_id.class.name,
 			      f.method_id.name,
 			      f.method_id.sig,
 			      f.location,
