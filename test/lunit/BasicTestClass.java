@@ -15,8 +15,15 @@ public class BasicTestClass {
 	return myVal;
     }
 
+    private static Object runLock = new Object();
+    public static void notifyRunLock() {
+	synchronized (runLock) {
+	    runLock.notify();
+	}
+    }
     public static void main(String args[]) throws Exception {
-	/* Allow tests to run */
-	Thread.sleep(3000);
+	synchronized (runLock) {
+	    runLock.wait();
+	}
     }
 }

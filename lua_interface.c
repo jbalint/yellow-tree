@@ -11,7 +11,7 @@
 
 static lua_State *lua_state;
 
-void lua_interface_init(jvmtiEnv *jvmti, jrawMonitorID mon)
+void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID mon)
 {
   lua_state = luaL_newstate();
   if (lua_state == NULL)
@@ -21,7 +21,7 @@ void lua_interface_init(jvmtiEnv *jvmti, jrawMonitorID mon)
   }
   luaL_openlibs(lua_state);
 
-  lj_init(lua_state, jvmti);
+  lj_init(lua_state, jvm, jvmti);
   /* this must be called AFTER lj_init() so the JVMTI callbacks can be registered */
   if (luaL_dostring(lua_state, "require('debuglib')"))
   {

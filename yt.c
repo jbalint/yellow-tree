@@ -21,6 +21,7 @@
 static const char *agent_options;
 
 static struct agent_globals {
+  JavaVM *jvm;
   jvmtiEnv *jvmti; /* global JVMTI reference */
   jvmtiError jerr; /* for convenience, NOT thread safe */
   jlocation ss_target; /* target BCI (of ssmethod) for single stepping */
@@ -79,7 +80,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   /* Enable event notifications (these must be set in live phase) */
   EV_ENABLE(BREAKPOINT);
 
-  lua_interface_init(Gagent.jvmti, Gagent.exec_monitor);
+  lua_interface_init(Gagent.jvm, Gagent.jvmti, Gagent.exec_monitor);
 
   lj_print_message("-------====---------\n");
   lj_print_message("Yellow Tree Debugger\n");
@@ -114,7 +115,7 @@ cbVMDeath(jvmtiEnv *jvmti, JNIEnv *jni)
 }
 
 JNIEXPORT jint JNICALL
-Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
+Agent_OnLoad(JavaVM *jvm, char *options, void *reserved)
 {
   jvmtiEventCallbacks *evCbs;
   jvmtiCapabilities caps;
@@ -140,13 +141,14 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
   caps.can_generate_single_step_events = 1; /* Used for line-oriented stepping */
 /*   caps.can_generate_frame_pop_events = 1; */
 
-  rc = (*vm)->GetEnv(vm, (void **)&jvmti, JVMTI_VERSION_1_0);
+  rc = (*jvm)->GetEnv(jvm, (void **)&jvmti, JVMTI_VERSION_1_0);
   if(rc < 0)
   {
 	fprintf(stderr, "Failed to get JVMTI env\n");
 	return JNI_ERR;
   }
 
+  Gagent.jvm = jvm;
   Gagent.jvmti = jvmti;
   Gagent.jerr = (*Gagent.jvmti)->GetVersionNumber(Gagent.jvmti, &jvmtiVer);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
@@ -174,13 +176,13 @@ Agent_OnLoad(JavaVM *vm, char *options, void *reserved)
 }
 
 JNIEXPORT jint JNICALL
-Agent_OnAttach(JavaVM *vm, char *options, void *reserved)
+Agent_OnAttach(JavaVM *jvm, char *options, void *reserved)
 {
   assert(!"ERR: attach not supported");
   return JNI_ERR;
 }
 
 JNIEXPORT void JNICALL
-Agent_OnUnload(JavaVM *vm)
+Agent_OnUnload(JavaVM *jvm)
 {
 }

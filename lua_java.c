@@ -18,6 +18,7 @@
 static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 
+static JavaVM *lj_jvm;
 /* main JNIEnv pointer, used by all calls */
 static JNIEnv *lj_jni;
 /* saved [c]ommand [l]oop thread JNIEnv pointer */
@@ -1449,7 +1450,7 @@ static int lj_clear_jvmti_callback(lua_State *L)
 
 /* Lua API -> */
 
-void lj_init(lua_State *L, jvmtiEnv *jvmti)
+void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 {
   lj_L = L;
 
@@ -1492,7 +1493,8 @@ void lj_init(lua_State *L, jvmtiEnv *jvmti)
   lj_jvmti_callbacks.cb_method_exit_ref = LUA_NOREF;
   lj_jvmti_callbacks.cb_single_step_ref = LUA_NOREF;
 
-  /* save jvmtiEnv pointer for global use */
+  /* save pointers for global use */
+  lj_jvm = jvm;
   lj_jvmti = jvmti;
 }
 
