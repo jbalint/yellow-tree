@@ -20,6 +20,28 @@ depth = 1
 -- breakpoint list
 breakpoints = {}
 
+-- event queue
+events = {}
+events.lock = lj_create_raw_monitor("yellow_tree_event_queue")
+function events:pop()
+   self.lock:lock()
+   if table.maxn(self) == 0 then
+      self.lock:wait()
+   end
+   local event = table.remove(self, 1)
+   self.lock:unlock()
+   return event
+end
+function events:push(event)
+   self.lock:lock()
+   table.insert(self, event)
+   self.lock:broadcast()
+   self.lock:unlock()
+end
+
+-- thread condition variable -- initialized in C code
+thread_resume_monitor = nil
+
 -- single step tracking
 single_step_location = nil
 single_step_method_id = nil
@@ -28,17 +50,17 @@ single_step_method_id = nil
 dbgio = require("console_io")
 
 -- ============================================================
--- Starts debugger
+-- Starts command interpreter
 -- ============================================================
-function start()
+function start_cmd()
    local x = function (err)
-	  dbgio:print("Error: ", err)
-	  dbgio:print(debug.traceback())
+      dbgio:print("Error: ", err)
+      dbgio:print(debug.traceback())
    end
    if options.runfile then
       local success, m2 = xpcall(loadfile(options.runfile), x)
       if not success then
-		 dbgio:print(string.format("Error running '%s': %s", options.runfile, m2))
+	 dbgio:print(string.format("Error running '%s': %s", options.runfile, m2))
       end
       g()
       return
@@ -47,13 +69,30 @@ function start()
 end
 
 -- ============================================================
+-- Starts event processor
+-- ============================================================
+function start_evp()
+while true do
+   local event = events:pop()
+   --dbgio:print("Handling event ", dump(event))
+   if event.type == "breakpoint" then
+      local bp = event.data
+      dbgio:print()
+      dbgio:print(stack_frame_to_string(lj_get_stack_frame(1)))
+      depth = 1
+      -- run handler if present and resume thread if requested
+      if bp.handler and bp:handler() then
+	 thread_resume_monitor:notify_without_lock()
+      end
+   end
+end
+end
+
+-- ============================================================
 -- Continue execution
 -- ============================================================
 function g()
-   lj_jvm_resume()
-   -- TODO ... O.o debugging (oasis3de) won't work startup
-   -- without this... no idea what's interfering (stdin...?)
-   os.execute("sleep " .. tonumber(1))
+   thread_resume_monitor:notify_without_lock()
 end
 
 -- ============================================================
@@ -277,11 +316,22 @@ end
  -- | |__| |  \  /  | |  | |  | |   _| |_  | |___| (_| | | | |_) | (_| | (__|   <\__ \
  --  \____/    \/   |_|  |_|  |_|  |_____|  \_____\__,_|_|_|_.__/ \__,_|\___|_|\_\___/
 
+Event = {}
+function Event:new(type, data)
+   local event = {type=type, data=data}
+   if event.type ~= "breakpoint" and
+      event.type ~= "method_entry" and
+      event.type ~= "method_exit" and
+      event.type ~= "single_step" then
+	 error("Invalid event type: " .. type)
+   end
+   return event
+end
+
 -- ============================================================
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
 function cb_breakpoint(thread, method_id, location)
-   depth = 1
    local bp
    for idx, v in pairs(breakpoints) do
       -- TODO and test location
@@ -290,15 +340,8 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
-   dbgio:print()
-   dbgio:print(stack_frame_to_string(lj_get_stack_frame(1)))
-   if bp.handler then
-      -- allow bp handler if present
-      return bp:handler()
-   else
-      -- else default to breaking to command loop
-      return true
-   end
+   events:push(Event:new("breakpoint", bp))
+   thread_resume_monitor:wait_without_lock()
 end
 
 function cb_method_entry(thread, method_id)

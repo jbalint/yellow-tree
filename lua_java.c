@@ -19,19 +19,12 @@ static jvmtiEnv *lj_jvmti;
 static jvmtiError lj_err;
 
 static JavaVM *lj_jvm;
-/* main JNIEnv pointer, used by all calls */
-static JNIEnv *lj_jni;
-/* saved [c]ommand [l]oop thread JNIEnv pointer */
-static JNIEnv *lj_cl_jni;
 
+/* TODO: is this used for anything */
 static jthread lj_current_thread;
 
 /* needed to have a lua state at jvmti callback */
 static lua_State *lj_L;
-/* this is used to signal the JVM to resume execution after
-   a breakpoint (etc) callback
-   it's also used to initially execute the program */
-static jrawMonitorID exec_monitor;
 /* we need to keep class paired with field_id due to JVMTI API */
 typedef struct {
   jfieldID field_id;
@@ -55,6 +48,14 @@ static struct {
   (lj_err = event_change(lj_jvmti, JVMTI_DISABLE,		\
 			 JVMTI_EVENT_##EVTYPE, (EVTHR)))
 
+static JNIEnv *current_jni()
+{
+  JNIEnv *jni;
+  jint ret = (*lj_jvm)->AttachCurrentThread(lj_jvm, (void**)&jni, NULL);
+  assert(ret == JNI_OK);
+  return jni;
+}
+
 static void lj_check_jvmti_error(lua_State *L)
 {
   char *errmsg = "<Unknown Error>";
@@ -76,7 +77,7 @@ static void lj_check_jvmti_error(lua_State *L)
 }
 
 /* allocate a new userdata object for a jmethodID */
-static void new_jmethod_id(lua_State *L, jmethodID method_id)
+void new_jmethod_id(lua_State *L, jmethodID method_id)
 {
   jmethodID *user_data;
   user_data = lua_newuserdata(L, sizeof(jmethodID));
@@ -85,7 +86,7 @@ static void new_jmethod_id(lua_State *L, jmethodID method_id)
   lua_setmetatable(L, -2);
 }
 
-static void new_jfield_id(lua_State *L, jfieldID field_id, jclass class)
+void new_jfield_id(lua_State *L, jfieldID field_id, jclass class)
 {
   lj_field_id *user_data;
   user_data = lua_newuserdata(L, sizeof(lj_field_id));
@@ -95,7 +96,7 @@ static void new_jfield_id(lua_State *L, jfieldID field_id, jclass class)
   lua_setmetatable(L, -2);
 }
 
-static void new_jobject(lua_State *L, jobject object)
+void new_jobject(lua_State *L, jobject object)
 {
   jobject *user_data;
   if (!object)
@@ -109,7 +110,7 @@ static void new_jobject(lua_State *L, jobject object)
   lua_setmetatable(L, -2);
 }
 
-static void new_jmonitor(lua_State *L, jrawMonitorID monitor, const char *name)
+void new_jmonitor(lua_State *L, jrawMonitorID monitor, const char *name)
 {
   jrawMonitorID *user_data;
   user_data = lua_newuserdata(L, sizeof(jrawMonitorID));
@@ -120,15 +121,15 @@ static void new_jmonitor(lua_State *L, jrawMonitorID monitor, const char *name)
   (void)name;
 }
 
-static void new_string(lua_State *L, jstring string)
+void new_string(lua_State *L, JNIEnv *jni, jstring string)
 {
   const char *utf_chars;
-  utf_chars = (*lj_jni)->GetStringUTFChars(lj_jni, string, NULL);
+  utf_chars = (*jni)->GetStringUTFChars(jni, string, NULL);
   if (utf_chars)
   {
     lua_pushstring(L, utf_chars);
-    (*lj_jni)->ReleaseStringUTFChars(lj_jni, string, utf_chars);
-    EXCEPTION_CHECK(lj_jni);
+    (*jni)->ReleaseStringUTFChars(jni, string, utf_chars);
+    EXCEPTION_CHECK(jni);
   }
   else
   {
@@ -138,6 +139,7 @@ static void new_string(lua_State *L, jstring string)
 
 static jobject get_current_java_thread()
 {
+  JNIEnv *jni = current_jni();
   jclass thread_class;
   jmethodID getCurrentThread_method_id;
   jobject current_thread;
@@ -145,19 +147,19 @@ static jobject get_current_java_thread()
   if (lj_current_thread)
     return lj_current_thread;
 
-  thread_class = (*lj_jni)->FindClass(lj_jni, "java/lang/Thread");
-  EXCEPTION_CHECK(lj_jni);
+  thread_class = (*jni)->FindClass(jni, "java/lang/Thread");
+  EXCEPTION_CHECK(jni);
   assert(thread_class);
 
-  getCurrentThread_method_id = (*lj_jni)->GetStaticMethodID(lj_jni, thread_class,
-							    "currentThread",
-							    "()Ljava/lang/Thread;");
-  EXCEPTION_CHECK(lj_jni);
+  getCurrentThread_method_id = (*jni)->GetStaticMethodID(jni, thread_class,
+							 "currentThread",
+							 "()Ljava/lang/Thread;");
+  EXCEPTION_CHECK(jni);
   assert(getCurrentThread_method_id);
 
-  current_thread = (*lj_jni)->CallStaticObjectMethod(lj_jni, thread_class,
-						     getCurrentThread_method_id);
-  EXCEPTION_CHECK(lj_jni);
+  current_thread = (*jni)->CallStaticObjectMethod(jni, thread_class,
+						  getCurrentThread_method_id);
+  EXCEPTION_CHECK(jni);
   assert(current_thread);
 
   return current_thread;
@@ -300,6 +302,7 @@ static int lj_get_current_thread(lua_State *L)
 
 static int lj_get_method_id(lua_State *L)
 {
+  JNIEnv *jni = current_jni();
   jclass class;
   jmethodID method_id;
   const char *class_name;
@@ -315,8 +318,8 @@ static int lj_get_method_id(lua_State *L)
   lua_pop(L, 4);
 
   /* get class */
-  class = (*lj_jni)->FindClass(lj_jni, class_name);
-  EXCEPTION_CLEAR(lj_jni);
+  class = (*jni)->FindClass(jni, class_name);
+  EXCEPTION_CLEAR(jni);
   if (class == NULL)
   {
     lua_pushnil(L);
@@ -328,13 +331,13 @@ static int lj_get_method_id(lua_State *L)
   sprintf(sig, "(%s)%s", args, ret);
 
   /* try instance method */
-  method_id = (*lj_jni)->GetMethodID(lj_jni, class, method_name, sig);
-  EXCEPTION_CLEAR(lj_jni);
+  method_id = (*jni)->GetMethodID(jni, class, method_name, sig);
+  EXCEPTION_CLEAR(jni);
 
   /* otherwise try static method */
   if (method_id == NULL)
-    method_id = (*lj_jni)->GetStaticMethodID(lj_jni, class, method_name, sig);
-  EXCEPTION_CLEAR(lj_jni);
+    method_id = (*jni)->GetStaticMethodID(jni, class, method_name, sig);
+  EXCEPTION_CLEAR(jni);
   free(sig);
 
   if (method_id == NULL)
@@ -502,18 +505,19 @@ static int lj_get_class_methods(lua_State *L)
 
 static int lj_find_class(lua_State *L)
 {
+  JNIEnv *jni = current_jni();
   jclass class;
   const char *class_name;
 
   class_name = luaL_checkstring(L, 1);
   lua_pop(L, 1);
 
-  class = (*lj_jni)->FindClass(lj_jni, class_name);
+  class = (*jni)->FindClass(jni, class_name);
   if (class == NULL)
   {
 	/* most of the time, we'll be getting NoClassDefFoundError.
 	   It's not worth the effort to detect and report other exceptions here... */
-	(*lj_jni)->ExceptionClear(lj_jni);
+	(*jni)->ExceptionClear(jni);
 	lua_pushnil(L);
   }
   else
@@ -534,6 +538,7 @@ static int lj_find_class(lua_State *L)
  */
 static int lj_call_method(lua_State *L)
 {
+  JNIEnv *jni = current_jni();
   jobject object;
   jmethodID method_id;
   const char *ret;
@@ -581,7 +586,7 @@ static int lj_call_method(lua_State *L)
     }
     else if (!strcmp("STR", argtype)) /* TODO non-standard indicator */
     {
-      jargs[i].l = (*lj_jni)->NewStringUTF(lj_jni, luaL_checkstring(L, param_num++));
+      jargs[i].l = (*jni)->NewStringUTF(jni, luaL_checkstring(L, param_num++));
     }
     else if (!strcmp("I", argtype))
     {
@@ -612,96 +617,96 @@ static int lj_call_method(lua_State *L)
   if (!strcmp("V", ret))
   {
     if (is_static)
-      (*lj_jni)->CallStaticVoidMethodA(lj_jni, object, method_id, jargs);
+      (*jni)->CallStaticVoidMethodA(jni, object, method_id, jargs);
     else
-      (*lj_jni)->CallVoidMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      (*jni)->CallVoidMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     result_count = 0;
   }
   else if (!strcmp("L", ret) || !strcmp("STR", ret))
   {
     if (!strcmp("<init>", method_name))
-      val.l = (*lj_jni)->NewObjectA(lj_jni, object, method_id, jargs);
+      val.l = (*jni)->NewObjectA(jni, object, method_id, jargs);
     else if (is_static)
-      val.l = (*lj_jni)->CallStaticObjectMethodA(lj_jni, object, method_id, jargs);
+      val.l = (*jni)->CallStaticObjectMethodA(jni, object, method_id, jargs);
     else
-      val.l = (*lj_jni)->CallObjectMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.l = (*jni)->CallObjectMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     if (!strcmp("L", ret))
       new_jobject(L, val.l);
     else
-      new_string(L, val.l);
+      new_string(L, jni, val.l);
   }
   else if (!strcmp("Z", ret))
   {
     if (is_static)
-      val.z = (*lj_jni)->CallStaticBooleanMethodA(lj_jni, object, method_id, jargs);
+      val.z = (*jni)->CallStaticBooleanMethodA(jni, object, method_id, jargs);
     else
-      val.z = (*lj_jni)->CallBooleanMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.z = (*jni)->CallBooleanMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushboolean(L, val.z);
   }
   else if (!strcmp("B", ret))
   {
     if (is_static)
-      val.b = (*lj_jni)->CallStaticByteMethodA(lj_jni, object, method_id, jargs);
+      val.b = (*jni)->CallStaticByteMethodA(jni, object, method_id, jargs);
     else
-      val.b = (*lj_jni)->CallByteMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.b = (*jni)->CallByteMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.b);
   }
   else if (!strcmp("C", ret))
   {
     if (is_static)
-      val.c = (*lj_jni)->CallStaticCharMethodA(lj_jni, object, method_id, jargs);
+      val.c = (*jni)->CallStaticCharMethodA(jni, object, method_id, jargs);
     else
-      val.c = (*lj_jni)->CallCharMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.c = (*jni)->CallCharMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.c);
   }
   else if (!strcmp("S", ret))
   {
     if (is_static)
-      val.s = (*lj_jni)->CallStaticShortMethodA(lj_jni, object, method_id, jargs);
+      val.s = (*jni)->CallStaticShortMethodA(jni, object, method_id, jargs);
     else
-      val.s = (*lj_jni)->CallShortMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.s = (*jni)->CallShortMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.s);
   }
   else if (!strcmp("I", ret))
   {
     if (is_static)
-      val.i = (*lj_jni)->CallStaticIntMethodA(lj_jni, object, method_id, jargs);
+      val.i = (*jni)->CallStaticIntMethodA(jni, object, method_id, jargs);
     else
-      val.i = (*lj_jni)->CallIntMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.i = (*jni)->CallIntMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.i);
   }
   else if (!strcmp("J", ret))
   {
     if (is_static)
-      val.j = (*lj_jni)->CallStaticLongMethodA(lj_jni, object, method_id, jargs);
+      val.j = (*jni)->CallStaticLongMethodA(jni, object, method_id, jargs);
     else
-      val.j = (*lj_jni)->CallLongMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.j = (*jni)->CallLongMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.j);
   }
   else if (!strcmp("F", ret))
   {
     if (is_static)
-      val.f = (*lj_jni)->CallStaticFloatMethodA(lj_jni, object, method_id, jargs);
+      val.f = (*jni)->CallStaticFloatMethodA(jni, object, method_id, jargs);
     else
-      val.f = (*lj_jni)->CallFloatMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.f = (*jni)->CallFloatMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushnumber(L, val.f);
   }
   else if (!strcmp("D", ret))
   {
     if (is_static)
-      val.d = (*lj_jni)->CallStaticDoubleMethodA(lj_jni, object, method_id, jargs);
+      val.d = (*jni)->CallStaticDoubleMethodA(jni, object, method_id, jargs);
     else
-      val.d = (*lj_jni)->CallDoubleMethodA(lj_jni, object, method_id, jargs);
-    EXCEPTION_CHECK(lj_jni);
+      val.d = (*jni)->CallDoubleMethodA(jni, object, method_id, jargs);
+    EXCEPTION_CHECK(jni);
     lua_pushnumber(L, val.d);
   }
   else
@@ -718,6 +723,7 @@ static int lj_call_method(lua_State *L)
 
 static int lj_toString(lua_State *L)
 {
+  JNIEnv *jni = current_jni();
   jobject object;
   jclass class;
   jmethodID method_id;
@@ -726,30 +732,30 @@ static int lj_toString(lua_State *L)
   object = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   lua_pop(L, 1);
 
-  class = (*lj_jni)->FindClass(lj_jni, "java/lang/Object");
-  EXCEPTION_CHECK(lj_jni);
+  class = (*jni)->FindClass(jni, "java/lang/Object");
+  EXCEPTION_CHECK(jni);
   if (class == NULL)
   {
     lua_pushnil(L);
     return 1;
   }
-  method_id = (*lj_jni)->GetMethodID(lj_jni, class, "toString", "()Ljava/lang/String;");
-  EXCEPTION_CHECK(lj_jni);
+  method_id = (*jni)->GetMethodID(jni, class, "toString", "()Ljava/lang/String;");
+  EXCEPTION_CHECK(jni);
   if (method_id == NULL)
   {
     lua_pushnil(L);
     return 1;
   }
 
-  string = (jstring)(*lj_jni)->CallObjectMethod(lj_jni, object, method_id);
-  EXCEPTION_CHECK(lj_jni);
+  string = (jstring)(*jni)->CallObjectMethod(jni, object, method_id);
+  EXCEPTION_CHECK(jni);
   if (string == NULL)
   {
     lua_pushnil(L);
     return 1;
   }
 
-  new_string(L, string);
+  new_string(L, jni, string);
 
   return 1;
 }
@@ -888,6 +894,7 @@ static int lj_get_field_declaring_class(lua_State *L)
 
 static int lj_get_field_id(lua_State *L)
 {
+  JNIEnv *jni = current_jni();
   jclass class;
   jfieldID field_id;
   const char *class_name;
@@ -900,8 +907,8 @@ static int lj_get_field_id(lua_State *L)
   lua_pop(L, 3);
 
   /* get class */
-  class = (*lj_jni)->FindClass(lj_jni, class_name);
-  EXCEPTION_CLEAR(lj_jni);
+  class = (*jni)->FindClass(jni, class_name);
+  EXCEPTION_CLEAR(jni);
   if (class == NULL)
   {
     lua_pushnil(L);
@@ -909,13 +916,13 @@ static int lj_get_field_id(lua_State *L)
   }
 
   /* try instance field */
-  field_id = (*lj_jni)->GetFieldID(lj_jni, class, field_name, sig);
-  EXCEPTION_CLEAR(lj_jni);
+  field_id = (*jni)->GetFieldID(jni, class, field_name, sig);
+  EXCEPTION_CLEAR(jni);
 
   /* otherwise try static field */
   if (field_id == NULL)
-    field_id = (*lj_jni)->GetStaticFieldID(lj_jni, class, field_name, sig);
-  EXCEPTION_CLEAR(lj_jni);
+    field_id = (*jni)->GetStaticFieldID(jni, class, field_name, sig);
+  EXCEPTION_CLEAR(jni);
 
   if (field_id == NULL)
   {
@@ -956,6 +963,7 @@ static int lj_get_class_fields(lua_State *L)
 
 static int lj_get_field(lua_State *L)
 {
+  JNIEnv *jni = current_jni();
   jvalue val;
   jobject object;
   lj_field_id *field_id;
@@ -975,82 +983,82 @@ static int lj_get_field(lua_State *L)
   if (*sig == 'L' || *sig == '[')
   {
     if (is_static)
-      val.l = (*lj_jni)->GetStaticObjectField(lj_jni, object, field_id->field_id);
+      val.l = (*jni)->GetStaticObjectField(jni, object, field_id->field_id);
     else
-      val.l = (*lj_jni)->GetObjectField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.l = (*jni)->GetObjectField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     new_jobject(L, val.l);
   }
   else if (!strcmp(sig, "Z"))
   {
     if (is_static)
-      val.z = (*lj_jni)->GetStaticBooleanField(lj_jni, object, field_id->field_id);
+      val.z = (*jni)->GetStaticBooleanField(jni, object, field_id->field_id);
     else
-      val.z = (*lj_jni)->GetBooleanField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.z = (*jni)->GetBooleanField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushboolean(L, val.z);
   }
   else if (!strcmp(sig, "B"))
   {
     if (is_static)
-      val.b = (*lj_jni)->GetStaticByteField(lj_jni, object, field_id->field_id);
+      val.b = (*jni)->GetStaticByteField(jni, object, field_id->field_id);
     else
-      val.b = (*lj_jni)->GetByteField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.b = (*jni)->GetByteField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.b);
   }
   else if (!strcmp(sig, "C"))
   {
     if (is_static)
-      val.c = (*lj_jni)->GetStaticCharField(lj_jni, object, field_id->field_id);
+      val.c = (*jni)->GetStaticCharField(jni, object, field_id->field_id);
     else
-      val.c = (*lj_jni)->GetCharField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.c = (*jni)->GetCharField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.c);
   }
   else if (!strcmp(sig, "S"))
   {
     if (is_static)
-      val.s = (*lj_jni)->GetStaticShortField(lj_jni, object, field_id->field_id);
+      val.s = (*jni)->GetStaticShortField(jni, object, field_id->field_id);
     else
-      val.s = (*lj_jni)->GetShortField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.s = (*jni)->GetShortField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.s);
   }
   else if (!strcmp(sig, "I"))
   {
     if (is_static)
-      val.i = (*lj_jni)->GetStaticIntField(lj_jni, object, field_id->field_id);
+      val.i = (*jni)->GetStaticIntField(jni, object, field_id->field_id);
     else
-      val.i = (*lj_jni)->GetIntField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.i = (*jni)->GetIntField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.i);
   }
   else if (!strcmp(sig, "J"))
   {
     if (is_static)
-      val.j = (*lj_jni)->GetStaticLongField(lj_jni, object, field_id->field_id);
+      val.j = (*jni)->GetStaticLongField(jni, object, field_id->field_id);
     else
-      val.j = (*lj_jni)->GetLongField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.j = (*jni)->GetLongField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushinteger(L, val.j);
   }
   else if (!strcmp(sig, "F"))
   {
     if (is_static)
-      val.f = (*lj_jni)->GetStaticFloatField(lj_jni, object, field_id->field_id);
+      val.f = (*jni)->GetStaticFloatField(jni, object, field_id->field_id);
     else
-      val.f = (*lj_jni)->GetFloatField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.f = (*jni)->GetFloatField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushnumber(L, val.f);
   }
   else if (!strcmp(sig, "D"))
   {
     if (is_static)
-      val.d = (*lj_jni)->GetStaticDoubleField(lj_jni, object, field_id->field_id);
+      val.d = (*jni)->GetStaticDoubleField(jni, object, field_id->field_id);
     else
-      val.d = (*lj_jni)->GetDoubleField(lj_jni, object, field_id->field_id);
-    EXCEPTION_CHECK(lj_jni);
+      val.d = (*jni)->GetDoubleField(jni, object, field_id->field_id);
+    EXCEPTION_CHECK(jni);
     lua_pushnumber(L, val.d);
   }
   else
@@ -1111,28 +1119,6 @@ static int lj_get_field_modifiers_table(lua_State *L)
   return 1;
 }
 
-static int lj_jvm_resume(lua_State *L)
-{
-  lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, exec_monitor);
-  lj_check_jvmti_error(L);
-  lj_err = (*lj_jvmti)->RawMonitorNotify(lj_jvmti, exec_monitor);
-  lj_check_jvmti_error(L);
-  lj_err = (*lj_jvmti)->RawMonitorExit(lj_jvmti, exec_monitor);
-  lj_check_jvmti_error(L);
-  return 0;
-}
-
-static int lj_jvm_wait(lua_State *L)
-{
-  lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, exec_monitor);
-  lj_check_jvmti_error(L);
-  lj_err = (*lj_jvmti)->RawMonitorWait(lj_jvmti, exec_monitor, 0);
-  lj_check_jvmti_error(L);
-  lj_err = (*lj_jvmti)->RawMonitorExit(lj_jvmti, exec_monitor);
-  lj_check_jvmti_error(L);
-  return 0;
-}
-
 static int lj_get_source_filename(lua_State *L)
 {
   jobject class;
@@ -1191,14 +1177,12 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 {
   int ref = lj_jvmti_callbacks.cb_breakpoint_ref;
   lua_State *L;
-  int break_to_command_loop;
 
   if (ref == LUA_NOREF)
     return;
 
   L = lua_newthread(lj_L);
 
-  lj_jni = jni;
   lj_current_thread = thread;
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
@@ -1206,138 +1190,21 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   new_jmethod_id(L, method_id);
   lua_pushinteger(L, location);
   lua_call(L, 3, 1);
-  luaL_checktype(L, 1, LUA_TBOOLEAN);
-  break_to_command_loop = lua_toboolean(L, -1);
-  lua_pop(L, 1);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
-  if (break_to_command_loop)
-  {
-    /* semantically makes sense, but method name doesn't match...
-       we notify() the command loop which is waiting here, then
-       wait for the command loop to notify() us back and resume
-       execution */
-    lj_jni = lj_cl_jni;
-    lj_jvm_wait(L);
-  }
 }
 
 static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id)
 {
-  /*
-
-Code copied from cb_breakpoint
-
-  */
-  int ref = lj_jvmti_callbacks.cb_method_entry_ref;
-  lua_State *L;
-  int break_to_command_loop;
-
-  if (ref == LUA_NOREF)
-    return;
-
-  L = lua_newthread(lj_L);
-
-  lj_jni = jni;
-  lj_current_thread = thread;
-
-  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-  new_jobject(L, thread);
-  new_jmethod_id(L, method_id);
-  lua_call(L, 2, 1);
-  luaL_checktype(L, 1, LUA_TBOOLEAN);
-  break_to_command_loop = lua_toboolean(L, -1);
-  lua_pop(L, 1);
-  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
-  if (break_to_command_loop)
-  {
-    /* semantically makes sense, but method name doesn't match...
-       we notify() the command loop which is waiting here, then
-       wait for the command loop to notify() us back and resume
-       execution */
-    lj_jni = lj_cl_jni;
-    lj_jvm_wait(L);
-  }
 }
 
 static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jboolean was_popped_by_exception, jvalue return_value)
 {
-  /*
-
-Code copied from cb_breakpoint
-
-  */
-  int ref = lj_jvmti_callbacks.cb_method_exit_ref;
-  lua_State *L;
-  int break_to_command_loop;
-
-  if (ref == LUA_NOREF)
-    return;
-
-  L = lua_newthread(lj_L);
-
-  lj_jni = jni;
-  lj_current_thread = thread;
-
-  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-  new_jobject(L, thread);
-  new_jmethod_id(L, method_id);
-  lua_pushboolean(L, was_popped_by_exception);
-  /* TODO return_value must be passed to Lua */
-  lua_call(L, 3, 1);
-  luaL_checktype(L, 1, LUA_TBOOLEAN);
-  break_to_command_loop = lua_toboolean(L, -1);
-  lua_pop(L, 1);
-  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
-  if (break_to_command_loop)
-  {
-    /* semantically makes sense, but method name doesn't match...
-       we notify() the command loop which is waiting here, then
-       wait for the command loop to notify() us back and resume
-       execution */
-    lj_jni = lj_cl_jni;
-    lj_jvm_wait(L);
-  }
 }
 
 static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jlocation location)
 {
-  /*
-
-Code copied from cb_breakpoint
-
-  */
-  int ref = lj_jvmti_callbacks.cb_single_step_ref; /**/
-  lua_State *L;
-  int break_to_command_loop;
-
-  if (ref == LUA_NOREF)
-    return;
-
-  L = lua_newthread(lj_L);
-
-  lj_jni = jni;
-  lj_current_thread = thread;
-
-  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-  new_jobject(L, thread);
-  new_jmethod_id(L, method_id);
-  lua_pushinteger(L, location);
-  lua_call(L, 3, 1);
-  luaL_checktype(L, 1, LUA_TBOOLEAN);
-  break_to_command_loop = lua_toboolean(L, -1);
-  lua_pop(L, 1);
-  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
-  if (break_to_command_loop)
-  {
-    /* semantically makes sense, but method name doesn't match...
-       we notify() the command loop which is waiting here, then
-       wait for the command loop to notify() us back and resume
-       execution */
-    lj_jni = lj_cl_jni;
-    lj_jvm_wait(L);
-  }
 }
 
 static void get_jvmti_callback_pointers(const char *callback,
@@ -1586,8 +1453,6 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_field",                  lj_get_field);
   lua_register(L, "lj_get_field_modifiers",        lj_get_field_modifiers);
   lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
-  lua_register(L, "lj_jvm_resume",                 lj_jvm_resume);
-  lua_register(L, "lj_jvm_wait",                   lj_jvm_wait);
   lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
   lua_register(L, "lj_get_line_number_table",      lj_get_line_number_table);
 
@@ -1612,19 +1477,6 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   /* save pointers for global use */
   lj_jvm = jvm;
   lj_jvmti = jvmti;
-}
-
-void lj_set_jni(JNIEnv *jni)
-{
-  assert(jni);
-  lj_jni = jni;
-  if (!lj_cl_jni)
-    lj_cl_jni = jni;
-}
-
-void lj_set_jvm_exec_monitor(jrawMonitorID mon)
-{
-  exec_monitor = mon;
 }
 
 void lj_print_message(const char *format, ...)

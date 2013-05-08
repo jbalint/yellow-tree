@@ -21,9 +21,12 @@ public class BasicTestClass {
 	    runLock.notify();
 	}
     }
-    public static void main(String args[]) throws Exception {
+    public static void waitRunLock() {
 	synchronized (runLock) {
-	    runLock.wait();
+	    runLock.notify();
 	}
+    }
+    public static void main(String args[]) throws Exception {
+	Thread.sleep(3000);
     }
 }

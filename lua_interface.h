@@ -8,6 +8,7 @@
 #include <jvmti.h>
 
 void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID mon);
-void lua_start(JNIEnv *jni, const char *opts);
+void lua_start_cmd(const char *opts);
+void lua_start_evp();
 
 #endif /* LUA_INTERFACE_H_ */

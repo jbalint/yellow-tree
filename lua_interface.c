@@ -11,7 +11,7 @@
 
 static lua_State *lua_state;
 
-void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID mon)
+void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resume_monitor)
 {
   lua_state = luaL_newstate();
   if (lua_state == NULL)
@@ -28,18 +28,25 @@ void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID mon)
     fprintf(stderr, "Failed to load debuglib.lua: %s\n", lua_tostring(lua_state, -1));
     abort();
   }
-  lj_set_jvm_exec_monitor(mon);
+  new_jmonitor(lua_state, thread_resume_monitor, "yellow_tree_thread_resume_monitor");
+  lua_setglobal(lua_state, "thread_resume_monitor");
 }
 
-void lua_start(JNIEnv *jni, const char *opts)
+void lua_start_cmd(const char *opts)
 {
-  lj_set_jni(jni);
-  lua_getglobal(lua_state, "setopts"); /* from debuglib.lua */
-  lua_pushstring(lua_state, opts);
-  if (lua_pcall(lua_state, 1, 0, 0))
+  lua_State *L = lua_newthread(lua_state);
+  lua_getglobal(L, "setopts"); /* from debuglib.lua */
+  lua_pushstring(L, opts);
+  if (lua_pcall(L, 1, 0, 0))
   {
-    fprintf(stderr, "Error setting options: %s\n", lua_tostring(lua_state, -1));
-    lua_pop(lua_state, 1);
+    fprintf(stderr, "Error setting options: %s\n", lua_tostring(L, -1));
+    lua_pop(L, 1);
   }
-  luaL_dostring(lua_state, "start()");
+  luaL_dostring(L, "start_cmd()");
+}
+
+void lua_start_evp()
+{
+  lua_State *L = lua_newthread(lua_state);
+  luaL_dostring(L, "start_evp()");
 }

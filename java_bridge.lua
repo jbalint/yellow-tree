@@ -247,6 +247,21 @@ end
 function jmonitor_mt:broadcast()
    lj_raw_monitor_notify_all(self)
 end
+function jmonitor_mt:wait_without_lock(time)
+   self:lock()
+   self:wait(time)
+   self:unlock()
+end
+function jmonitor_mt:notify_without_lock()
+   self:lock()
+   self:notify()
+   self:unlock()
+end
+function jmonitor_mt:broadcast_without_lock()
+   self:lock()
+   self:broadcast()
+   self:unlock()
+end
 
 -- ============================================================
 -- jobject metatable

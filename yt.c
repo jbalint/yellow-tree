@@ -28,7 +28,6 @@ static struct agent_globals {
   jmethodID ss_mid;
   jint ss_destheight; /* our destination stack height */
   int ss_canenter;
-  jrawMonitorID exec_monitor;
 } Gagent;
 
 static jvmtiError
@@ -66,7 +65,12 @@ check_jvmti_error(jvmtiEnv *jvmti, jvmtiError jerr)
 
 static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
 {
-  lua_start(jni, agent_options);
+  lua_start_cmd(agent_options);
+}
+
+static void JNICALL event_processor_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
+{
+  lua_start_evp();
 }
 
 static void JNICALL
@@ -74,38 +78,56 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 {
   jclass thread_class;
   jmethodID thread_ctor;
-  jthread agent_thread;
-  jstring thread_name;
+  jthread cmd_thread;
+  jthread evp_thread;
+  jstring cmd_thread_name;
+  jstring evp_thread_name;
+  jrawMonitorID thread_resume_monitor;
 
   /* Enable event notifications (these must be set in live phase) */
   EV_ENABLE(BREAKPOINT);
 
-  lua_interface_init(Gagent.jvm, Gagent.jvmti, Gagent.exec_monitor);
+  /* create raw monitor used for sync with the Lua environment */
+  (*Gagent.jvmti)->CreateRawMonitor(Gagent.jvmti, "yellow_tree_thread_resume_monitor", &thread_resume_monitor);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+
+  /* initialize Lua side */
+  lua_interface_init(Gagent.jvm, Gagent.jvmti, thread_resume_monitor);
 
   lj_print_message("-------====---------\n");
   lj_print_message("Yellow Tree Debugger\n");
   lj_print_message("-------====---------\n");
   fflush(stdout);
 
-  /* start and run the debugger command loop */
   thread_class = (*jni)->FindClass(jni, "java/lang/Thread");
   assert(thread_class);
   thread_ctor = (*jni)->GetMethodID(jni, thread_class, "<init>", "(Ljava/lang/String;)V");
   assert(thread_ctor);
-  thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Lua Execution");
-  assert(thread_name);
-  agent_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, thread_name);
-  assert(agent_thread);
-  (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, agent_thread, command_loop_thread,
+
+  /* start and run the debugger command loop */
+  cmd_thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Command Interpreter");
+  assert(cmd_thread_name);
+  cmd_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, cmd_thread_name);
+  assert(cmd_thread);
+  (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, cmd_thread, command_loop_thread,
+  								  NULL, JVMTI_THREAD_NORM_PRIORITY);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+
+  /* start and run the debugger event processor */
+  evp_thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Event Processor");
+  assert(evp_thread_name);
+  evp_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, evp_thread_name);
+  assert(evp_thread);
+  (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, evp_thread, event_processor_thread,
   								  NULL, JVMTI_THREAD_NORM_PRIORITY);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 
   /* wait for debugger to begin execution */
-  (*Gagent.jvmti)->RawMonitorEnter(Gagent.jvmti, Gagent.exec_monitor);
+  (*Gagent.jvmti)->RawMonitorEnter(Gagent.jvmti, thread_resume_monitor);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  (*Gagent.jvmti)->RawMonitorWait(Gagent.jvmti, Gagent.exec_monitor, 0);
+  (*Gagent.jvmti)->RawMonitorWait(Gagent.jvmti, thread_resume_monitor, 0);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  (*Gagent.jvmti)->RawMonitorExit(Gagent.jvmti, Gagent.exec_monitor);
+  (*Gagent.jvmti)->RawMonitorExit(Gagent.jvmti, thread_resume_monitor);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 }
 
@@ -167,10 +189,6 @@ Agent_OnLoad(JavaVM *jvm, char *options, void *reserved)
 /*   EV_ENABLE(THREAD_END); */
   /* Check that any calls to SetEventNotificationMode are valid in the
      OnLoad phase before calling here. */
-
-  /* create raw monitor used for sync with the Lua environment */
-  (*Gagent.jvmti)->CreateRawMonitor(Gagent.jvmti, "yellow_tree_lua", &Gagent.exec_monitor);
-  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 
   return JNI_OK;
 }
