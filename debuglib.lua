@@ -601,3 +601,16 @@ function run_tests()
    loadfile("test/test_lua_java.lua")()
    loadfile("test/test_java_bridge.lua")()
 end
+
+function y()
+   local threads = lj_get_all_threads()
+   local main_thread
+   for i, t in ipairs(threads) do
+      if t.getName().toString() == "main" then
+	 main_thread = t
+      end
+   end
+   print(dump(main_thread))
+   print(dump(main_thread.frame_count))
+   print(dump(main_thread.frames))
+end

@@ -296,6 +296,19 @@ jobject_mt.__index = function(object, key)
       return class
    end
 
+   -- special fields for "thread" objects
+   if lj_toString(class) == "class java.lang.Thread" then
+      if key == "frame_count" then
+	 return lj_get_frame_count(object)
+      elseif key == "frames" then
+	 local frames = {}
+	 for i = 1, object.frame_count do
+	    table.insert(frames, lj_get_stack_frame(i, object))
+	 end
+	 return frames
+      end
+   end
+
    -- special fields for "class" objects
    if lj_toString(class) == "class java.lang.Class" then
       if key == "sourcefile" then

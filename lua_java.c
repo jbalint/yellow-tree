@@ -175,7 +175,20 @@ static jobject get_current_java_thread()
 static int lj_get_frame_count(lua_State *L)
 {
   jint count;
-  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, get_current_java_thread(), &count);
+  jobject thread;
+
+  /* check if we're passed a thread */
+  if (lua_gettop(L) == 1)
+  {
+    thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+    lua_pop(L, 1);
+  }
+  else
+  {
+    thread = get_current_java_thread();
+  }
+
+  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, thread, &count);
   lj_check_jvmti_error(L);
   lua_pushinteger(L, count);
   return 1;
@@ -186,12 +199,24 @@ static int lj_get_stack_frame(lua_State *L)
   int frame_num;
   jvmtiFrameInfo fi;
   jint count;
+  jobject thread;
+  int args = 1;
 
   frame_num = luaL_checkint(L, 1);
-  lua_pop(L, 1);
+  /* check if we're passed a thread */
+  if (lua_gettop(L) == 2)
+  {
+    args++;
+    thread = *(jobject *)luaL_checkudata(L, 2, "jobject_mt");
+  }
+  else
+  {
+    thread = get_current_java_thread();
+  }
+  lua_pop(L, args);
 
   /* get stack frame info */
-  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, get_current_java_thread(), frame_num-1, 1, &fi, &count);
+  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, thread, frame_num-1, 1, &fi, &count);
   lj_check_jvmti_error(L);
   if (count == 0) {
     return 0;
@@ -1337,6 +1362,28 @@ static int lj_get_current_thread(lua_State *L)
   return 1;
 }
 
+static int lj_get_all_threads(lua_State *L)
+{
+  jint threads_count;
+  jthread *threads;
+  int i;
+
+  lj_err = (*lj_jvmti)->GetAllThreads(lj_jvmti, &threads_count, &threads);
+  lj_check_jvmti_error(L);
+
+  lua_newtable(L);
+
+  for (i = 0; i < threads_count; ++i)
+  {
+    new_jobject(L, threads[i]);
+    lua_rawseti(L, -2, i+1);
+  }
+
+  free_jvmti_refs(lj_jvmti, threads, (void *)-1);
+
+  return 1;
+}
+
 static int lj_create_raw_monitor(lua_State *L)
 {
   jrawMonitorID monitor;
@@ -1477,6 +1524,7 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_clear_jvmti_callback",       lj_clear_jvmti_callback);
 
   lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
+  lua_register(L, "lj_get_all_threads",            lj_get_all_threads);
 
   /* raw monitor */
   lua_register(L, "lj_create_raw_monitor",         lj_create_raw_monitor);
