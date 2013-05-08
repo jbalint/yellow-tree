@@ -588,6 +588,24 @@ static int lj_call_method(lua_State *L)
     {
       jargs[i].l = (*jni)->NewStringUTF(jni, luaL_checkstring(L, param_num++));
     }
+    else if (!strcmp("Z", argtype))
+    {
+      luaL_checktype(L, param_num, LUA_TBOOLEAN);
+      jargs[i].z = lua_toboolean(L, param_num);
+      param_num++;
+    }
+    else if (!strcmp("B", argtype))
+    {
+      jargs[i].b = luaL_checkinteger(L, param_num++);
+    }
+    else if (!strcmp("C", argtype)) /* TODO should this be a one-element string? (not int) */
+    {
+      jargs[i].c = luaL_checkinteger(L, param_num++);
+    }
+    else if (!strcmp("S", argtype))
+    {
+      jargs[i].s = luaL_checkinteger(L, param_num++);
+    }
     else if (!strcmp("I", argtype))
     {
       jargs[i].i = luaL_checkinteger(L, param_num++);

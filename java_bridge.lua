@@ -108,6 +108,15 @@ local function call_java_method(object, possible_methods, args)
 	 if argi == nil then
 	    table.insert(jargs, "V")
 	    table.insert(jargs, nil)
+	 elseif (t == "Z") and type(argi) == "boolean" then
+	    table.insert(jargs, t)
+	    table.insert(jargs, argi)
+	 elseif (t == "I" or t == "J") and type(argi) == "number" then
+	    table.insert(jargs, t)
+	    table.insert(jargs, math.floor(argi))
+	 elseif (t == "F" or t == "D") and type(argi) == "number" then
+	    table.insert(jargs, t)
+	    table.insert(jargs, argi)
 	 elseif t == "Ljava/lang/String;" and type(argi) ~= "userdata" then
 	    table.insert(jargs, "STR")
 	    table.insert(jargs, string.format("%s", argi))
@@ -118,12 +127,6 @@ local function call_java_method(object, possible_methods, args)
 	       table.insert(jargs, "L")
 	       table.insert(jargs, argi)
 	    end
-	 elseif (t == "I" or t == "J") and type(argi) == "number" then
-	    table.insert(jargs, t)
-	    table.insert(jargs, math.floor(argi))
-	 elseif (t == "F" or t == "D") and type(argi) == "number" then
-	    table.insert(jargs, t)
-	    table.insert(jargs, argi)
 	 end
 
 	 -- call only if all args matched

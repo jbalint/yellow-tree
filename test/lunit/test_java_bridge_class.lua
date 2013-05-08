@@ -92,3 +92,8 @@ function test_basic_method_access()
    assert_not_nil(m3)
    assert_not_equal(m1, m3)
 end
+
+function test_boolean_param()
+   local s_true = java.lang.String.valueOf(true)
+   assert_equal("true", s_true.toString())
+end
