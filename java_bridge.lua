@@ -221,6 +221,34 @@ jfield_id_mt.__index = function(field_id, k)
 end
 
 -- ============================================================
+-- jmonitor metatable - created by lj_create_raw_monitor()
+local jmonitor_mt = {}
+debug.getregistry()["jmonitor_mt"] = jmonitor_mt
+jmonitor_mt.__tostring = function(monitor)
+   return string.format("jmonitor@%s",
+			lj_pointer_to_string(monitor))
+end
+jmonitor_mt.__index = jmonitor_mt
+function jmonitor_mt:destroy()
+   lj_destroy_raw_monitor(self)
+end
+function jmonitor_mt:lock()
+   lj_raw_monitor_enter(self)
+end
+function jmonitor_mt:unlock()
+   lj_raw_monitor_exit(self)
+end
+function jmonitor_mt:wait(time)
+   lj_raw_monitor_wait(self, time or 0)
+end
+function jmonitor_mt:notify()
+   lj_raw_monitor_notify(self)
+end
+function jmonitor_mt:broadcast()
+   lj_raw_monitor_notify_all(self)
+end
+
+-- ============================================================
 -- jobject metatable
 local jobject_mt = {}
 debug.getregistry()["jobject_mt"] = jobject_mt

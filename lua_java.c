@@ -109,6 +109,17 @@ static void new_jobject(lua_State *L, jobject object)
   lua_setmetatable(L, -2);
 }
 
+static void new_jmonitor(lua_State *L, jrawMonitorID monitor, const char *name)
+{
+  jrawMonitorID *user_data;
+  user_data = lua_newuserdata(L, sizeof(jrawMonitorID));
+  *user_data = monitor;
+  lua_getfield(L, LUA_REGISTRYINDEX, "jmonitor_mt");
+  lua_setmetatable(L, -2);
+  assert(name);
+  (void)name;
+}
+
 static void new_string(lua_State *L, jstring string)
 {
   const char *utf_chars;
@@ -1441,6 +1452,102 @@ static int lj_clear_jvmti_callback(lua_State *L)
   return 0;
 }
 
+static int lj_create_raw_monitor(lua_State *L)
+{
+  jrawMonitorID monitor;
+  const char *name;
+
+  name = luaL_checkstring(L, 1);
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->CreateRawMonitor(lj_jvmti, name, &monitor);
+  lj_check_jvmti_error(L);
+
+  new_jmonitor(L, monitor, name);
+
+  return 1;
+}
+
+static int lj_destroy_raw_monitor(lua_State *L)
+{
+  jrawMonitorID monitor;
+
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->DestroyRawMonitor(lj_jvmti, monitor);
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
+static int lj_raw_monitor_enter(lua_State *L)
+{
+  jrawMonitorID monitor;
+
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, monitor);
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
+static int lj_raw_monitor_exit(lua_State *L)
+{
+  jrawMonitorID monitor;
+
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->RawMonitorExit(lj_jvmti, monitor);
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
+static int lj_raw_monitor_wait(lua_State *L)
+{
+  jrawMonitorID monitor;
+  jlong wait;
+
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  wait = luaL_checkint(L, 2);
+  lua_pop(L, 2);
+
+  lj_err = (*lj_jvmti)->RawMonitorWait(lj_jvmti, monitor, wait);
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
+static int lj_raw_monitor_notify(lua_State *L)
+{
+  jrawMonitorID monitor;
+
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->RawMonitorNotify(lj_jvmti, monitor);
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
+static int lj_raw_monitor_notify_all(lua_State *L)
+{
+  jrawMonitorID monitor;
+
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*lj_jvmti)->RawMonitorNotifyAll(lj_jvmti, monitor);
+  lj_check_jvmti_error(L);
+
+  return 0;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -1486,6 +1593,15 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 
   lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
   lua_register(L, "lj_clear_jvmti_callback",       lj_clear_jvmti_callback);
+
+  /* raw monitor */
+  lua_register(L, "lj_create_raw_monitor",         lj_create_raw_monitor);
+  lua_register(L, "lj_destroy_raw_monitor",        lj_destroy_raw_monitor);
+  lua_register(L, "lj_raw_monitor_enter",          lj_raw_monitor_enter);
+  lua_register(L, "lj_raw_monitor_exit",           lj_raw_monitor_exit);
+  lua_register(L, "lj_raw_monitor_wait",           lj_raw_monitor_wait);
+  lua_register(L, "lj_raw_monitor_notify",         lj_raw_monitor_notify);
+  lua_register(L, "lj_raw_monitor_notify_all",     lj_raw_monitor_notify_all);
 
   /* clear callback refs */
   lj_jvmti_callbacks.cb_breakpoint_ref = LUA_NOREF;
