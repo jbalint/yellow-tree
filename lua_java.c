@@ -286,20 +286,6 @@ static int lj_get_local_variable_table(lua_State *L)
   return 1;
 }
 
-static int lj_get_current_thread(lua_State *L)
-{
-  jthread thread;
-
-  /* JVMTI seems to be returning the agent thread, even though it says it won't */
-  /* lj_err = (*lj_jvmti)->GetCurrentThread(lj_jvmti, &thread); */
-  /* lj_check_jvmti_error(L); */
-  thread = get_current_java_thread();
-
-  new_jobject(L, thread);
-
-  return 1;
-}
-
 static int lj_get_method_id(lua_State *L)
 {
   JNIEnv *jni = current_jni();
@@ -1337,6 +1323,20 @@ static int lj_clear_jvmti_callback(lua_State *L)
   return 0;
 }
 
+static int lj_get_current_thread(lua_State *L)
+{
+  jthread thread;
+
+  /* JVMTI seems to be returning the agent thread, even though it says it won't */
+  /* lj_err = (*lj_jvmti)->GetCurrentThread(lj_jvmti, &thread); */
+  /* lj_check_jvmti_error(L); */
+  thread = get_current_java_thread();
+
+  new_jobject(L, thread);
+
+  return 1;
+}
+
 static int lj_create_raw_monitor(lua_State *L)
 {
   jrawMonitorID monitor;
@@ -1452,7 +1452,6 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_set_breakpoint",             lj_set_breakpoint);
   lua_register(L, "lj_clear_breakpoint",           lj_clear_breakpoint);
   lua_register(L, "lj_get_local_variable_table",   lj_get_local_variable_table);
-  lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
   lua_register(L, "lj_get_method_id",              lj_get_method_id);
   lua_register(L, "lj_get_local_variable",         lj_get_local_variable);
   lua_register(L, "lj_pointer_to_string",          lj_pointer_to_string);
@@ -1476,6 +1475,8 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 
   lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
   lua_register(L, "lj_clear_jvmti_callback",       lj_clear_jvmti_callback);
+
+  lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
 
   /* raw monitor */
   lua_register(L, "lj_create_raw_monitor",         lj_create_raw_monitor);
