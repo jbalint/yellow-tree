@@ -88,6 +88,9 @@ local function call_java_method(object, possible_methods, args)
    for i,m in ipairs(possible_methods) do
       -- short circuit match for no args
       if #args == 0 and m.args == "" then
+	 if m.modifiers.static then
+	    object = object.class
+	 end
 	 return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), 0)
       end
 
@@ -131,6 +134,9 @@ local function call_java_method(object, possible_methods, args)
 
 	 -- call only if all args matched
 	 if #jargs == (argc * 2) then
+	    if m.modifiers.static then
+	       object = object.class
+	    end
 	    return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), argc, unpack(jargs))
 	 end
       end
