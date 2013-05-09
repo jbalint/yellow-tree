@@ -451,7 +451,7 @@ static int lj_get_local_variable(lua_State *L)
       lua_pushnumber(L, val_d);
     }
   }
-  else if (!strncmp(type, "L", 1))
+  else if (*type == 'L' || *type == '[')
   {
     /* GetLocalInstance() is new to JVMTI 1.2 */
     /* if (slot == 0) */
@@ -591,7 +591,7 @@ static int lj_call_method(lua_State *L)
       jargs[i].l = NULL;
       param_num++; /* skip the nil */
     }
-    else if ('L' == argtype[0])
+    else if ('L' == argtype[0] || '[' == argtype[0])
     {
       jargs[i].l = *(jobject *)luaL_checkudata(L, param_num++, "jobject_mt");
     }
@@ -652,7 +652,7 @@ static int lj_call_method(lua_State *L)
     EXCEPTION_CHECK(jni);
     result_count = 0;
   }
-  else if (!strcmp("L", ret) || !strcmp("STR", ret))
+  else if (ret[0] == 'L' || ret[0] == '[' || !strcmp("STR", ret))
   {
     if (!strcmp("<init>", method_name))
       val.l = (*jni)->NewObjectA(jni, object, method_id, jargs);
@@ -661,7 +661,7 @@ static int lj_call_method(lua_State *L)
     else
       val.l = (*jni)->CallObjectMethodA(jni, object, method_id, jargs);
     EXCEPTION_CHECK(jni);
-    if (!strcmp("L", ret))
+    if (!strcmp("L", ret) || ret[0] == '[')
       new_jobject(L, val.l);
     else
       new_string(L, jni, val.l);
@@ -1480,6 +1480,82 @@ static int lj_raw_monitor_notify_all(lua_State *L)
   return 0;
 }
 
+static int lj_get_array_length(lua_State *L)
+{
+  JNIEnv *jni = current_jni();
+  jobject array = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  jsize length = (*jni)->GetArrayLength(jni, array);
+  EXCEPTION_CHECK(jni);
+  lua_pop(L, 1);
+  lua_pushinteger(L, length);
+  return 1;
+}
+
+static int lj_get_array_element(lua_State *L)
+{
+  JNIEnv *jni = current_jni();
+  jobject array = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  const char *class_name = luaL_checkstring(L, 2);
+  jsize index = luaL_checkinteger(L, 3) - 1;
+  jvalue val;
+  lua_pop(L, 3);
+
+  assert(*class_name == '[');
+  switch (class_name[1])
+  {
+  case 'L':
+  case '[':
+    val.l = (*jni)->GetObjectArrayElement(jni, array, index);
+    EXCEPTION_CHECK(jni);
+    new_jobject(L, val.l);
+    break;
+  case 'Z':
+    (*jni)->GetBooleanArrayRegion(jni, array, index, 1, &val.z);
+    EXCEPTION_CHECK(jni);
+    lua_pushboolean(L, val.z);
+    break;
+  case 'B':
+    (*jni)->GetByteArrayRegion(jni, array, index, 1, &val.b);
+    EXCEPTION_CHECK(jni);
+    lua_pushinteger(L, val.b);
+    break;
+  case 'C':
+    (*jni)->GetCharArrayRegion(jni, array, index, 1, &val.c);
+    EXCEPTION_CHECK(jni);
+    lua_pushinteger(L, val.c);
+    break;
+  case 'S':
+    (*jni)->GetShortArrayRegion(jni, array, index, 1, &val.s);
+    EXCEPTION_CHECK(jni);
+    lua_pushinteger(L, val.s);
+    break;
+  case 'I':
+    (*jni)->GetIntArrayRegion(jni, array, index, 1, &val.i);
+    EXCEPTION_CHECK(jni);
+    lua_pushinteger(L, val.i);
+    break;
+  case 'J':
+    (*jni)->GetLongArrayRegion(jni, array, index, 1, &val.j);
+    EXCEPTION_CHECK(jni);
+    lua_pushinteger(L, val.j);
+    break;
+  case 'F':
+    (*jni)->GetFloatArrayRegion(jni, array, index, 1, &val.f);
+    EXCEPTION_CHECK(jni);
+    lua_pushnumber(L, val.f);
+    break;
+  case 'D':
+    (*jni)->GetDoubleArrayRegion(jni, array, index, 1, &val.d);
+    EXCEPTION_CHECK(jni);
+    lua_pushnumber(L, val.d);
+    break;
+  default:
+    (void)luaL_error(L, "Unknown array class: %s\n", class_name);
+  }
+
+  return 1;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -1534,6 +1610,9 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_raw_monitor_wait",           lj_raw_monitor_wait);
   lua_register(L, "lj_raw_monitor_notify",         lj_raw_monitor_notify);
   lua_register(L, "lj_raw_monitor_notify_all",     lj_raw_monitor_notify_all);
+
+  lua_register(L, "lj_get_array_length",           lj_get_array_length);
+  lua_register(L, "lj_get_array_element",          lj_get_array_element);
 
   /* clear callback refs */
   lj_jvmti_callbacks.cb_breakpoint_ref = LUA_NOREF;

@@ -97,3 +97,80 @@ function test_boolean_param()
    local s_true = java.lang.String.valueOf(true)
    assert_equal("true", s_true.toString())
 end
+
+-- ============================================================
+-- Array access
+-- ============================================================
+function test_method_invocation_array_matching()
+   local tt = TestTypes.new()
+   tt.assign()
+
+   local ts = java.util.Arrays.toString
+
+   assert_equal("[null, null, number2, null, null]", ts(tt.oarray))
+   assert_equal("[false, false, false, true, false]", ts(tt.zarray))
+   assert_equal("[0, 0, 0, 0, -100]", ts(tt.barray))
+   assert_equal("[A,  ,  ,  ,  ]", ts(tt.carray))
+   assert_equal("[0, 85, 0, 0, 0]", ts(tt.sarray))
+   assert_equal("[0, 0, 850, 0, 0]", ts(tt.iarray))
+   assert_equal("[0, 0, 0, 8500, 0]", ts(tt.jarray))
+   assert_equal("[0.0, 50.1, 0.0, 0.0, 0.0]", ts(tt.farray))
+   assert_equal("[0.0, 0.0, 40.12345, 0.0, 0.0]", ts(tt.darray))
+end
+
+function test_array_string_stuff()
+   local s = java.lang.String.new("Hello!")
+   local ba = s.getBytes()
+   local ca = s.toCharArray()
+   assert_equal(6, ba.length)
+   assert_equal(6, ca.length)
+   local s2b = java.lang.String.new(ba)
+   local s2c = java.lang.String.new(ca)
+   assert_equal("Hello!", s2b.toString())
+   assert_equal("Hello!", s2c.toString())
+end
+
+function test_array_call()
+   local tt1 = TestTypes.new()
+   tt1.assign()
+   local tt2 = TestTypes.new()
+   assert_nil(tt2.oarray[3])
+   tt2.setArray(tt1.oarray)
+   assert_equal("number2", tt2.oarray[3].toString())
+end
+
+function test_array_access()
+   local tt = TestTypes.new()
+   tt.assign()
+   assert_equal(5, tt.oarray.length)
+
+   assert_equal(nil, tt.oarray[2])
+   assert_equal("number2", tt.oarray[3].toString())
+
+   assert_equal(false, tt.zarray[3])
+   assert_equal(true, tt.zarray[4])
+
+   assert_equal(0, tt.barray[1])
+   assert_equal(-100, tt.barray[5])
+
+   assert_equal(0x20, tt.carray[2])
+   assert_equal(0x41, tt.carray[1])
+
+   assert_equal(0, tt.sarray[1])
+   assert_equal(85, tt.sarray[2])
+
+   assert_equal(0, tt.iarray[1])
+   assert_equal(850, tt.iarray[3])
+
+   assert_equal(0, tt.jarray[1])
+   assert_equal(8500, tt.jarray[4])
+
+   assert_equal(0, tt.farray[1])
+   assert_true(tt.farray[2] > 50.0)
+   assert_true(math.abs(50.1 - tt.farray[2]) < 0.01)
+
+   assert_equal(0, tt.darray[1])
+   assert_true(tt.darray[3] > 40.1234)
+   assert_true(math.abs(40.12345 - tt.darray[3]) < 0.0001)
+   assert_equal(40.12345, tt.darray[3])
+end

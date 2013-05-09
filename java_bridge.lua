@@ -59,15 +59,20 @@ end
 -- ============================================================
 -- parse an arg spec from a method signature into individual components
 local function parse_arg_spec(argspec)
-   -- TODO array support needed here
    if argspec == "" then return {} end
    local argarray = {}
    while argspec ~= "" do
       local char1 = string.sub(argspec, 1, 1)
-      if char1 == "L" then
+      local char2 = string.sub(argspec, 2, 2)
+      if char1 == "L" or (char1 == "[" and char2 == "L") then
+	 -- object / object array
 	 local endi = string.find(argspec, ";")
 	 table.insert(argarray, string.sub(argspec, 1, endi))
 	 argspec = string.sub(argspec, endi + 1)
+      elseif char1 == "[" then
+	 -- primitive array
+	 table.insert(argarray, char1 .. char2)
+	 argspec = string.sub(argspec, 3)
       else
 	 -- assume primitive type (single char)
 	 table.insert(argarray, char1)
@@ -94,10 +99,8 @@ local function call_java_method(object, possible_methods, args)
 	 return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), 0)
       end
 
-      -- we can't handle array args, so....
-      if not string.find(m.args, "[", 1, true) and
-	 -- only try to match methods with the same number of arguments
-	 #parse_arg_spec(m.args) == argc then
+      -- only try to match methods with the same number of arguments
+      if #parse_arg_spec(m.args) == argc then
 	 table.insert(possible2, m)
       end
    end
@@ -120,12 +123,20 @@ local function call_java_method(object, possible_methods, args)
 	 elseif (t == "F" or t == "D") and type(argi) == "number" then
 	    table.insert(jargs, t)
 	    table.insert(jargs, argi)
+	 elseif string.sub(t, 1, 1) == "[" and type(argi) == "userdata" and argi.class.name == t then
+	    table.insert(jargs, "[")
+	    table.insert(jargs, argi)
 	 elseif t == "Ljava/lang/String;" and type(argi) ~= "userdata" then
 	    table.insert(jargs, "STR")
 	    table.insert(jargs, string.format("%s", argi))
-	 elseif string.sub(t, 1, 1) == "L" and type(argi) == "userdata" and
-	    string.find(string.format("%s", argi), "jobject@") == 1 then
-	    local tc = lj_find_class(string.sub(t, 2, #t - 1))
+	 elseif (string.sub(t, 1, 1) == "L" or string.sub(t, 1, 2) == "[L") and type(argi) == "userdata" and string.find(string.format("%s", argi), "jobject@") == 1 then
+	    local name = t
+	    -- from L; for non-arrays
+	    if string.sub(t, 1, 1) == "L" then
+	       name = string.sub(t, 2, #t - 1)
+	    end
+	    local tc = lj_find_class(name)
+	    assert(tc)
 	    if tc.isAssignableFrom(argi.class) then
 	       table.insert(jargs, "L")
 	       table.insert(jargs, argi)
@@ -142,7 +153,7 @@ local function call_java_method(object, possible_methods, args)
       end
       --print("more than one possible method, using: " .. method_id.name .. " from " .. lj_toString(method_id.class))
    end
-   error("No matching method for given arguments")
+   error("No matching method for given arguments: " .. dump(possible_methods))
 end
 
 -- ============================================================
@@ -297,13 +308,23 @@ jobject_mt.__index = function(object, key)
    -- we cannot use anything that would result in calling this function recursively
    local getclass_method_id = lj_get_method_id("java/lang/Object", "getClass", "", "Ljava/lang/Class;")
    local class = lj_call_method(object, getclass_method_id, false, "L", 0)
+   local class_name = string.sub(lj_toString(class), 7)
 
    if key == "class" then
       return class
    end
 
+   -- special fields for arrays
+   if string.find(class_name, "[", 1, true) == 1 then
+      if key == "length" then
+	 return lj_get_array_length(object)
+      elseif type(key) == "number" then
+	 return lj_get_array_element(object, class_name, key)
+      end
+   end
+
    -- special fields for "thread" objects
-   if lj_toString(class) == "class java.lang.Thread" then
+   if class_name == "java.lang.Thread" then
       if key == "frame_count" then
 	 return lj_get_frame_count(object)
       elseif key == "frames" then
@@ -316,7 +337,7 @@ jobject_mt.__index = function(object, key)
    end
 
    -- special fields for "class" objects
-   if lj_toString(class) == "class java.lang.Class" then
+   if class_name == "java.lang.Class" then
       if key == "sourcefile" then
 	 return lj_get_source_filename(object)
       elseif key == "name" then
