@@ -59,11 +59,9 @@ function start_cmd()
    end
    if options.runfile then
       local success, m2 = xpcall(loadfile(options.runfile), x)
-      if not success then
-	 dbgio:print(string.format("Error running '%s': %s", options.runfile, m2))
+      if success and not m2 then
+	 return
       end
-      g()
-      return
    end
    dbgio:command_loop()
 end
@@ -81,8 +79,14 @@ while true do
       dbgio:print(stack_frame_to_string(lj_get_stack_frame(1)))
       depth = 1
       -- run handler if present and resume thread if requested
-      if bp.handler and bp:handler() then
-	 thread_resume_monitor:notify_without_lock()
+      if bp.handler then
+	 local x = function (err)
+	    dbgio:print(debug.traceback("Error during bp.handler: " .. err, 2))
+	 end
+	 local success, m2 = xpcall(bp.handler, x, bp, event.thread)
+	 if success and m2 then
+	    thread_resume_monitor:notify_without_lock()
+	 end
       end
    end
 end
@@ -317,8 +321,8 @@ end
  --  \____/    \/   |_|  |_|  |_|  |_____|  \_____\__,_|_|_|_.__/ \__,_|\___|_|\_\___/
 
 Event = {}
-function Event:new(type, data)
-   local event = {type=type, data=data}
+function Event:new(thread, type, data)
+   local event = {thread=thread, type=type, data=data}
    if event.type ~= "breakpoint" and
       event.type ~= "method_entry" and
       event.type ~= "method_exit" and
@@ -340,7 +344,7 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
-   events:push(Event:new("breakpoint", bp))
+   events:push(Event:new(thread, "breakpoint", bp))
    thread_resume_monitor:wait_without_lock()
 end
 
