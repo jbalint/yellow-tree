@@ -304,6 +304,12 @@ jobject_mt.__eq = function(o1, o2)
    -- TODO reference comparison? possible? useful? equals?
    return false
 end
+jobject_mt.__len = function(object)
+   if object.class.name:sub(1, 1) == "[" then
+      return lj_get_array_length(object)
+   end
+   return 0
+end
 jobject_mt.__index = function(object, key)
    -- we cannot use anything that would result in calling this function recursively
    local getclass_method_id = lj_get_method_id("java/lang/Object", "getClass", "", "Ljava/lang/Class;")
