@@ -32,6 +32,29 @@ void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resum
   lua_setglobal(lua_state, "thread_resume_monitor");
 }
 
+/* lazy, from 
+http://stackoverflow.com/questions/12256455/print-stacktrace-from-c-code-with-embedded-lua
+*/
+static int traceback (lua_State *L) {
+  if (!lua_isstring(L, 1))  /* 'message' not a string? */
+    return 1;  /* keep it intact */
+  //lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+  lua_getglobal(L, "debug");
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    return 1;
+  }
+  lua_getfield(L, -1, "traceback");
+  if (!lua_isfunction(L, -1)) {
+    lua_pop(L, 2);
+    return 1;
+  }
+  lua_pushvalue(L, 1);  /* pass error message */
+  lua_pushinteger(L, 2);  /* skip this function and traceback */
+  lua_call(L, 2, 1);  /* call debug.traceback */
+  return 1;
+}
+
 void lua_start_cmd(const char *opts)
 {
   lua_State *L = lua_newthread(lua_state);
@@ -42,11 +65,30 @@ void lua_start_cmd(const char *opts)
     fprintf(stderr, "Error setting options: %s\n", lua_tostring(L, -1));
     lua_pop(L, 1);
   }
-  luaL_dostring(L, "start_cmd()");
+
+  lua_pushcfunction(L, traceback);
+  while (1)
+  {
+    lua_getglobal(L, "start_cmd");
+    if (lua_pcall(L, 0, 0, -2))
+    {
+      fprintf(stderr, "Error during command interpreter: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);
+    }
+  }
 }
 
 void lua_start_evp()
 {
   lua_State *L = lua_newthread(lua_state);
-  luaL_dostring(L, "start_evp()");
+  lua_pushcfunction(L, traceback);
+  while (1)
+  {
+    lua_getglobal(L, "start_evp");
+    if (lua_pcall(L, 0, 0, -2))
+    {
+      fprintf(stderr, "Error during event processor: %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);
+    }
+  }
 }
