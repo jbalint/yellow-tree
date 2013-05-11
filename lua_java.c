@@ -62,18 +62,13 @@ static void lj_check_jvmti_error(lua_State *L)
   if(lj_err == JVMTI_ERROR_NONE)
     return;
 
-  lj_print_message("Error %d from JVMTI", lj_err);
-  if((*lj_jvmti)->GetErrorName(lj_jvmti, lj_err, &errmsg) == JVMTI_ERROR_NONE)
-  {
-    lj_print_message(": %s", errmsg);
-    (*lj_jvmti)->Deallocate(lj_jvmti, (unsigned char *)errmsg);
-  }
-  lj_print_message("\n");
+  (*lj_jvmti)->GetErrorName(lj_jvmti, lj_err, &errmsg);
+  /* we never Deallocate() the errmsg returned from JVMTI */
 
   if (IsDebuggerPresent())
     DebugBreak();
 
-  (void)luaL_error(L, "Error %d from JVMTI: %s\n", lj_err, errmsg);
+  (void)luaL_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
 }
 
 /* allocate a new userdata object for a jmethodID */
@@ -1212,7 +1207,8 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
   L = lua_newthread(lj_L);
 
-  lj_current_thread = thread;
+  lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
+  assert(lj_current_thread);
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
