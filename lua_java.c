@@ -389,8 +389,11 @@ static int lj_get_local_variable(lua_State *L)
   slot = luaL_checkinteger(L, 2);
   type = luaL_checkstring(L, 3);
   lua_pop(L, 3);
-
-  if (!strcmp(type, "I"))
+  if (!strcmp(type, "Z") ||
+      !strcmp(type, "B") ||
+      !strcmp(type, "C") ||
+      !strcmp(type, "S") ||
+      !strcmp(type, "I"))
   {
     lj_err = (*lj_jvmti)->GetLocalInt(lj_jvmti, get_current_java_thread(),
 				      depth-1, slot, &val_i);
@@ -401,7 +404,10 @@ static int lj_get_local_variable(lua_State *L)
     else
     {
       lj_check_jvmti_error(L);
-      lua_pushinteger(L, val_i);
+      if (!strcmp(type, "Z"))
+	lua_pushboolean(L, val_i);
+      else
+	lua_pushinteger(L, val_i);
     }
   }
   else if (!strcmp(type, "J"))
