@@ -75,9 +75,9 @@ while true do
    --dbgio:print("Handling event ", dump(event))
    if event.type == "breakpoint" then
       local bp = event.data
-      dbgio:print()
-      dbgio:print(stack_frame_to_string(lj_get_stack_frame(1)))
       depth = 1
+      dbgio:print()
+      dbgio:print(frame_get(1))
       -- run handler if present and resume thread if requested
       if bp.handler then
 	 local x = function (err)
@@ -109,20 +109,29 @@ end
 -- ============================================================
 -- Print stack trace
 -- ============================================================
-function where()
-   local frame_count = lj_get_frame_count()
-
-   if frame_count == 0 then
-      dbgio:print("No code running")
-      return nil
+stack_mt = {}
+function stack_mt:__tostring()
+   if table.maxn(self) == 0 then
+      return("No code running")
    end
 
-   local stack = {}
-   for i = 1, frame_count do
-      local f = lj_get_stack_frame(i)
-      stack[i] = f
+   local disp = ""
+   for i, f in ipairs(self) do
       -- TODO limit frame count to prevent printing unreasonably large stacks
-      dbgio:print(stack_frame_to_string(f))
+      if depth == f.depth then
+	 disp = disp .. "*"
+      end
+      disp = string.format("%s%s\n", disp, f)
+   end
+   return(disp)
+end
+function stack()
+   local stack = {}
+   setmetatable(stack, stack_mt)
+   local frame_count = lj_get_frame_count()
+
+   for i = 1, frame_count do
+      table.insert(stack, frame_get(i))
    end
    return stack
 end
@@ -131,7 +140,7 @@ end
 -- Print local variables in current stack frame
 -- ============================================================
 function locals()
-   local frame = lj_get_stack_frame(depth)
+   local frame = frame_get(depth)
    local var_table = frame.method_id.local_variable_table
    for k, v in pairs(var_table) do
       dbgio:print(string.format("%10s = %s", k,
@@ -195,20 +204,18 @@ end
 -- ============================================================
 function frame(num)
    num = num or 1
-   local frame_count = lj_get_frame_count()
-   if num < 1 then
-      dbgio:print("Invalid frame number " .. num)
-      depth = 1
-   elseif num > frame_count then
-      dbgio:print("Invalid frame number " .. num)
-      depth = frame_count
-   else
-      depth = num
+
+   local f = frame_get(num)
+   if not f then
+      dbgio:print("Invalid frame")
    end
 
-   local f = lj_get_stack_frame(depth)
-   dbgio:print(stack_frame_to_string(f))
+   depth = num
    return f
+end
+
+function frame_get(num)
+   return Frame:new(nil, num)
 end
 
 -- ============================================================
@@ -361,7 +368,7 @@ function cb_single_step(thread, method_id, location)
       lj_clear_jvmti_callback("single_step")
       single_step_location = nil
       single_step_method_id = nil
-      dbgio:print(stack_frame_to_string(lj_get_stack_frame(depth)))
+      dbgio:print(frame_get(depth))
       return true
    else
       return false
@@ -378,6 +385,49 @@ end
  -- | |  | | __| | / __|
  -- | |__| | |_| | \__ \
  --  \____/ \__|_|_|___/
+
+Frame = {}
+function Frame:new(thread, depth)
+   thread = thread or lj_get_current_thread()
+   local frame = lj_get_stack_frame(depth, thread)
+   frame.thread = thread
+
+   setmetatable(frame, self)
+   return frame
+end
+function Frame:__index(k)
+   local local_var = self.method_id.local_variable_table[k]
+   if local_var then
+      return lj_get_local_variable(self.depth, local_var.slot, local_var.sig)
+   end
+end
+function Frame:locals()
+   local locals = {}
+   for k, v in pairs(self.frame.method_id.local_variable_table) do
+      locals[k] = self[k]
+   end
+   return locals
+end
+function Frame:__tostring()
+   -- look up line number
+   local line_num = -1
+   for idx, ln in ipairs(self.method_id.line_number_table or {}) do
+      if self.location >= ln.location then
+	 line_num = ln.line_num
+      else
+	 break
+      end
+   end
+
+   return string.format("%6s %s.%s%s - %s (%s:%s)",
+			"[" .. self.depth .. "]",
+			self.method_id.class.name,
+			self.method_id.name,
+			self.method_id.sig,
+			self.location,
+			self.method_id.class.sourcefile or "<unknown>",
+			line_num)
+end
 
 -- ============================================================
 -- parse debugger options
@@ -483,34 +533,6 @@ function init_locals_environment()
 end
 
 -- ============================================================
--- String format of stack frame
-function stack_frame_to_string(f)
-   -- look up line number
-   local line_num = -1
-   for idx, ln in ipairs(f.method_id.line_number_table or {}) do
-      if f.location >= ln.location then
-	 line_num = ln.line_num
-      else
-	 break
-      end
-   end
-
-   local disp = string.format("%6s %s.%s%s - %s (%s:%s)",
-			      "[" .. f.depth .. "]",
-			      f.method_id.class.name,
-			      f.method_id.name,
-			      f.method_id.sig,
-			      f.location,
-			      f.method_id.class.sourcefile or "<unknown>",
-			      line_num)
-   if f.depth == depth then
-      disp = string.gsub(disp, ".", "*", 1)
-   end
-
-   return disp
-end
-
--- ============================================================
 -- Parse a method declaration of the form
 -- java/io/PrintStream.println(Ljava/lang/String;)V
 function method_decl_parse(method_decl)
@@ -592,12 +614,12 @@ function x()
    bl()
    dbgio:print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
    g()
-   print(this.polyMorphic1())
-   print(this.polyMorphic2(4))
-   print(this.polyMorphic3(19283))
-   print(this.polyMorphic3("99"))
-   print(this.polyMorphic4(12, this))
-   print(this.polyMorphic5(17, this))
+   -- print(this.polyMorphic1())
+   -- print(this.polyMorphic2(4))
+   -- print(this.polyMorphic3(19283))
+   -- print(this.polyMorphic3("99"))
+   -- print(this.polyMorphic4(12, this))
+   -- print(this.polyMorphic5(17, this))
 end
 
 function run_tests()
