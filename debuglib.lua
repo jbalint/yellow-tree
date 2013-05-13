@@ -42,9 +42,9 @@ end
 -- thread condition variable -- initialized in C code
 thread_resume_monitor = nil
 
--- single step tracking
-single_step_location = nil
-single_step_method_id = nil
+-- next line tracking
+next_line_location = nil
+next_line_method_id = nil
 
 -- i/o
 dbgio = require("console_io")
@@ -160,14 +160,14 @@ function next_line(num)
    local line_nums = f.method_id.line_number_table
    for idx, ln in ipairs(line_nums) do
       if f.location < ln.location then
-	 single_step_location = ln.location
-	 single_step_method_id = f.method_id
+	 next_line_location = ln.location
+	 next_line_method_id = f.method_id
 	 break
       end
    end
 
    -- TODO allow stepping up a frame....
-   if not single_step_location then
+   if not next_line_location then
       dbgio:print("Cannot step to next line")
       return nil
    end
@@ -362,16 +362,15 @@ function cb_method_exit(thread, method_id, was_popped_by_exception, return_value
 end
 
 function cb_single_step(thread, method_id, location)
-   if single_step_location and
-      location >= single_step_location and
-      single_step_method_id == method_id then
+   -- TODO need more thread sync around this?
+   if next_line_location and location >= next_line_location and next_line_method_id == method_id then
+      local data = {method_id=method_id, location=location}
       lj_clear_jvmti_callback("single_step")
-      single_step_location = nil
-      single_step_method_id = nil
+      next_line_location = nil
+      next_line_method_id = nil
       dbgio:print(frame_get(depth))
-      return true
-   else
-      return false
+      events:push(Event:new(thread, "single_step", data))
+      thread_resume_monitor:wait_without_lock()
    end
 end
 

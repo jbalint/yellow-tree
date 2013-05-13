@@ -1205,6 +1205,8 @@ static int lj_get_line_number_table(lua_State *L)
 static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 				 jmethodID method_id, jlocation location)
 {
+  /* all following callbacks are a copy of this code, changed for the
+     callback ref and the callback arguments */
   int ref = lj_jvmti_callbacks.cb_breakpoint_ref;
   lua_State *L;
 
@@ -1226,16 +1228,67 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
 static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id)
 {
+  int ref = lj_jvmti_callbacks.cb_method_entry_ref;
+  lua_State *L;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  L = lua_newthread(lj_L);
+
+  lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
+  assert(lj_current_thread);
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_call(L, 2, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 }
 
 static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jboolean was_popped_by_exception, jvalue return_value)
 {
+  int ref = lj_jvmti_callbacks.cb_method_exit_ref;
+  lua_State *L;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  L = lua_newthread(lj_L);
+
+  lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
+  assert(lj_current_thread);
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_pushboolean(L, was_popped_by_exception);
+  /* TODO return_value must be passed to Lua */
+  lua_call(L, 3, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 }
 
 static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
 				   jlocation location)
 {
+  int ref = lj_jvmti_callbacks.cb_single_step_ref;
+  lua_State *L;
+
+  if (ref == LUA_NOREF)
+    return;
+
+  L = lua_newthread(lj_L);
+
+  lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
+  assert(lj_current_thread);
+
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_pushinteger(L, location);
+  lua_call(L, 3, 1);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 }
 
 static void get_jvmti_callback_pointers(const char *callback,
