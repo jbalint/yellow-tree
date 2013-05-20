@@ -44,7 +44,7 @@ end
 function console_io:command_loop()
    while true do
       self:write("yt> ")
-      local cmd = self:read("*l")
+      local cmd = self:read("*l") or ""
       if cmd:sub(1, 1) == "=" then
 	 cmd = "return " .. cmd:sub(2)
       end
