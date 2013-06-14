@@ -75,6 +75,13 @@ void lua_start_cmd(const char *opts)
       fprintf(stderr, "Error during command interpreter: %s\n", lua_tostring(L, -1));
       lua_pop(L, 1);
     }
+    /* allow exiting intentionally here, if start_cmd() returns true */
+    if (lua_gettop(L) == 1)
+    {
+      int res = lua_toboolean(L, 1);
+      if (res)
+	break;
+    }
   }
 }
 
