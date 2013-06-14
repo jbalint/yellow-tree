@@ -15,6 +15,26 @@ function test_breakpoint_setting_by_string()
    end
    java.lang.StringBuilder.new().append(true)
    assert_equal(2, x)
+   bc()
+end
+
+function test_breakpoint_on_main_thread()
+   local x = 1
+   bp("BasicTestClass.doSomething()V")
+   bl()[1].handler = function (bp, thread)
+	  x = 2
+	  return false
+   end
+   -- dont let debugger handle the breakpoint before we wait
+   debug_lock:lock()
+   BasicTestClass.notifyRunLock()
+   debug_event:lock()
+   debug_lock:unlock()
+   debug_event:wait()
+   debug_event:unlock()
+   g()
+   assert_equal(2, x)
+   bc()
 end
 
 function test_breakpoint_setting_by_method_id()

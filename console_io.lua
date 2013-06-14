@@ -19,18 +19,25 @@ end
 function console_io:write(...)
    for i, e in ipairs({...}) do
       if type(e) == "string" then
-	 io.stdout:write(e)
+		 io.stdout:write(e)
       else
-	 io.stdout:write(string.format("%s", e))
+		 io.stdout:write(string.format("%s", e))
       end
    end
-   --io.stdout:write(...)
    io.stdout:flush()
 end
 
 function console_io:print(...)
    self:write(...)
    self:write("\n")
+end
+
+function console_io:debug(...)
+   local debug_enabled = true
+   if debug_enabled then
+	  self:write("DBG: ")
+	  self:print(...)
+   end
 end
 
 function console_io:flush()
@@ -41,21 +48,8 @@ function console_io:read(format)
    return io.stdin:read(format)
 end
 
-function console_io:command_loop()
-   while true do
-      self:write("yt> ")
-      local cmd = self:read("*l") or ""
-      if cmd:sub(1, 1) == "=" then
-	 cmd = "return " .. cmd:sub(2)
-      end
-      local chunk = load(cmd)
-      local success, m2 = pcall(chunk)
-      if not success then
-	 self:print("Error: " .. m2)
-      elseif m2 then
-	 self:print(m2)
-      end
-   end
+function console_io:read_line()
+   return self:read("*l")
 end
 
 print("console_io.lua - loaded with " .. _VERSION)

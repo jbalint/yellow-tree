@@ -286,6 +286,7 @@ end
 -- ============================================================
 -- jobject metatable
 local jobject_mt = {}
+setmetatable(jobject_mt, jobject_mt)
 debug.getregistry()["jobject_mt"] = jobject_mt
 jobject_mt.__tostring = function(object)
    return string.format("jobject@%s: %s",
@@ -396,6 +397,11 @@ jobject_mt.__index = function(object, key)
    if #methods > 0 then
       return new_jcallable_method(object, methods)
    end
+
+   return jobject_mt[key]
+end
+function jobject_mt:global_ref()
+   return lj_convert_to_global_ref(self)
 end
 
 print("java_bridge.lua - loaded with " .. _VERSION)

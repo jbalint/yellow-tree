@@ -10,6 +10,7 @@
 --  \_____\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|___/
 
 require("java_bridge")
+require("event_queue")
 
 -- options
 options = {}
@@ -19,25 +20,6 @@ depth = 1
 
 -- breakpoint list
 breakpoints = {}
-
--- event queue
-events = {}
-events.lock = lj_create_raw_monitor("yellow_tree_event_queue")
-function events:pop()
-   self.lock:lock()
-   if table.maxn(self) == 0 then
-      self.lock:wait()
-   end
-   local event = table.remove(self, 1)
-   self.lock:unlock()
-   return event
-end
-function events:push(event)
-   self.lock:lock()
-   table.insert(self, event)
-   self.lock:broadcast()
-   self.lock:unlock()
-end
 
 -- thread condition variable -- initialized in C code
 thread_resume_monitor = nil
@@ -49,13 +31,74 @@ next_line_method_id = nil
 -- i/o
 dbgio = require("console_io")
 
+-- lock to prevent multiple threads from entering the debugger simultaneously
+-- TODO should be moved up into C code to protect lua_State
+-- TODO doesn't prevent re-entry on same thread, will require at least g() to be called twice
+-- TODO make sure this doesn't deadlock on re-entry
+debug_lock = lj_create_raw_monitor("debug_lock")
+-- current thread being debugged, should be set when debug_lock is acquired
+-- and cleared when debug_lock is released
+debug_thread = nil
+
+-- used to wait for a debug event
+debug_event = lj_create_raw_monitor("debug_event")
+
+ThreadName = {}
+ThreadName.CMD_THREAD = "this is init'd in start_cmd"
+
+Thread = {}
+Thread.__index = Thread
+
+function Thread.new(jthread)
+   local self = setmetatable({}, Thread)
+   self.jthread = jthread
+   self.name = jthread.getName().toString()
+   self.event_queue = EventQueue.new(self.name)
+   return self
+end
+
+function Thread:handle_events()
+   while true do
+	  local event = self.event_queue:pop()
+	  dbgio:debug("Thread ", self.name, " received event ", dump(event))
+	  if event.type == EventType.RESUME then
+		 return
+	  elseif event.type == EventType.COMMAND then
+		 -- TODO copied from start_cmd()
+		 local success, m2 = pcall(event.data.chunk)
+		 if not success then
+			dbgio:print("Error: " .. m2)
+		 elseif m2 then
+			dbgio:print(m2)
+		 end
+	  end
+   end
+end
+
+threads = {}
+
+function current_thread()
+   local jthread = java.lang.Thread.currentThread():global_ref()
+   local name = jthread.getName().toString()
+   dbgio:debug("current_thread() = " .. name)
+   -- return thread object if already created
+   if threads[name] then
+	  return threads[name]
+   end
+   local thread = Thread.new(jthread)
+   threads[name] = thread
+   dbgio:print("New Java thread: ", jthread)
+   return thread
+end
+
 -- ============================================================
 -- Starts command interpreter
 -- ============================================================
 function start_cmd()
+   ThreadName.CMD_THREAD = current_thread().name
    local x = function (err)
-      dbgio:print("Error: ", err)
-      dbgio:print(debug.traceback())
+      dbgio:write("Error: ")
+      dbgio:print(debug.traceback(err, 2))
    end
    if options.runfile then
       local success, m2 = xpcall(loadfile(options.runfile), x)
@@ -63,40 +106,39 @@ function start_cmd()
          return true -- prevert restarting of start_cmd()
       end
    end
-   dbgio:command_loop()
-end
-
--- ============================================================
--- Starts event processor
--- ============================================================
-function start_evp()
+   -- command loop
    while true do
-      local event = events:pop()
-      --dbgio:print("Handling event ", dump(event))
-      if event.type == "breakpoint" then
-         local bp = event.data
-         depth = 1
-         dbgio:print()
-         dbgio:print(frame_get(1))
-         -- run handler if present and resume thread if requested
-         if bp.handler then
-            local x = function (err)
-               dbgio:print(debug.traceback("Error during bp.handler: " .. err, 2))
-            end
-            local success, m2 = xpcall(bp.handler, x, bp, event.thread)
-            if success and m2 then
-               thread_resume_monitor:notify_without_lock()
-            end
-         end
+      dbgio:write("yt> ")
+	  local cmd = dbgio:read_line() or ""
+      if cmd:sub(1, 1) == "=" then
+		 cmd = "return " .. cmd:sub(2)
       end
+      local chunk = load(cmd)
+	  if debug_thread == nil then
+		 local success, m2 = pcall(chunk)
+		 if not success then
+			dbgio:print("Error: " .. m2)
+		 elseif m2 then
+			dbgio:print(m2)
+		 end
+	  else
+		 local event = Event:new(threads[ThreadName.CMD_THREAD], EventType.COMMAND, {chunk=chunk})
+		 debug_thread.event_queue:push(event)
+	  end
    end
+   dbgio:command_loop()
 end
 
 -- ============================================================
 -- Continue execution
 -- ============================================================
 function g()
-   thread_resume_monitor:notify_without_lock()
+   if debug_thread ~= nil then
+	  local event = Event:new(current_thread(), EventType.RESUME)
+	  debug_thread.event_queue:push(event)
+   else
+	  thread_resume_monitor:notify_without_lock()
+   end
 end
 
 -- ============================================================
@@ -328,22 +370,13 @@ end
 -- | |__| |  \  /  | |  | |  | |   _| |_  | |___| (_| | | | |_) | (_| | (__|   <\__ \
 --  \____/    \/   |_|  |_|  |_|  |_____|  \_____\__,_|_|_|_.__/ \__,_|\___|_|\_\___/
 
-Event = {}
-function Event:new(thread, type, data)
-   local event = {thread=thread, type=type, data=data}
-   if event.type ~= "breakpoint" and
-      event.type ~= "method_entry" and
-      event.type ~= "method_exit" and
-   event.type ~= "single_step" then
-      error("Invalid event type: " .. type)
-   end
-   return event
-end
-
 -- ============================================================
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
 function cb_breakpoint(thread, method_id, location)
+   debug_lock:lock()
+   debug_thread = current_thread()
+
    local bp
    for idx, v in pairs(breakpoints) do
       -- TODO and test location
@@ -352,8 +385,33 @@ function cb_breakpoint(thread, method_id, location)
       end
    end
    assert(bp)
-   events:push(Event:new(thread, "breakpoint", bp))
-   thread_resume_monitor:wait_without_lock()
+
+   depth = 1
+   dbgio:print()
+   dbgio:print(frame_get(1))
+   local need_to_handle_events = true
+   -- run handler if present and resume thread if requested
+   if bp.handler then
+	  local x = function (err)
+		 dbgio:print(debug.traceback("Error during bp.handler: " .. err, 2))
+	  end
+	  local success, m2 = xpcall(bp.handler, x, bp, debug_thread)
+	  -- return true means we resume the thread
+	  if success and m2 then
+		 need_to_handle_events = false
+	  end
+   end
+   
+   if need_to_handle_events then
+	  debug_event:lock()
+	  debug_event:broadcast()
+	  debug_event:unlock()
+
+	  debug_thread:handle_events()
+   end
+
+   debug_thread = nil
+   debug_lock:unlock()
 end
 
 function cb_method_entry(thread, method_id)
@@ -370,7 +428,7 @@ function cb_single_step(thread, method_id, location)
       next_line_location = nil
       next_line_method_id = nil
       dbgio:print(frame_get(depth))
-      events:push(Event:new(thread, "single_step", data))
+      --events:push(Event:new(debug_thread, "single_step", data))
       thread_resume_monitor:wait_without_lock()
    end
 end
