@@ -42,11 +42,11 @@ static struct {
 #define NULL_JTHREAD NULL
 
 #define EV_ENABLET(EVTYPE, EVTHR) \
-  (lj_err = event_change(lj_jvmti, JVMTI_ENABLE,		\
-			 JVMTI_EVENT_##EVTYPE, (EVTHR)))
+  (lj_err = event_change(lj_jvmti, JVMTI_ENABLE,	\
+						 JVMTI_EVENT_##EVTYPE, (EVTHR)))
 #define EV_DISABLET(EVTYPE, EVTHR) \
-  (lj_err = event_change(lj_jvmti, JVMTI_DISABLE,		\
-			 JVMTI_EVENT_##EVTYPE, (EVTHR)))
+  (lj_err = event_change(lj_jvmti, JVMTI_DISABLE,	\
+						 JVMTI_EVENT_##EVTYPE, (EVTHR)))
 
 static JNIEnv *current_jni()
 {
@@ -147,13 +147,13 @@ static jobject get_current_java_thread()
   assert(thread_class);
 
   getCurrentThread_method_id = (*jni)->GetStaticMethodID(jni, thread_class,
-							 "currentThread",
-							 "()Ljava/lang/Thread;");
+														 "currentThread",
+														 "()Ljava/lang/Thread;");
   EXCEPTION_CHECK(jni);
   assert(getCurrentThread_method_id);
 
   current_thread = (*jni)->CallStaticObjectMethod(jni, thread_class,
-						  getCurrentThread_method_id);
+												  getCurrentThread_method_id);
   EXCEPTION_CHECK(jni);
   assert(current_thread);
 
@@ -396,7 +396,7 @@ static int lj_get_local_variable(lua_State *L)
       !strcmp(type, "I"))
   {
     lj_err = (*lj_jvmti)->GetLocalInt(lj_jvmti, get_current_java_thread(),
-				      depth-1, slot, &val_i);
+									  depth-1, slot, &val_i);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -413,7 +413,7 @@ static int lj_get_local_variable(lua_State *L)
   else if (!strcmp(type, "J"))
   {
     lj_err = (*lj_jvmti)->GetLocalLong(lj_jvmti, get_current_java_thread(),
-				       depth-1, slot, &val_j);
+									   depth-1, slot, &val_j);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -427,7 +427,7 @@ static int lj_get_local_variable(lua_State *L)
   else if (!strcmp(type, "F"))
   {
     lj_err = (*lj_jvmti)->GetLocalFloat(lj_jvmti, get_current_java_thread(),
-					depth-1, slot, &val_f);
+										depth-1, slot, &val_f);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -441,7 +441,7 @@ static int lj_get_local_variable(lua_State *L)
   else if (!strcmp(type, "D"))
   {
     lj_err = (*lj_jvmti)->GetLocalDouble(lj_jvmti, get_current_java_thread(),
-					 depth-1, slot, &val_d);
+										 depth-1, slot, &val_d);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -459,7 +459,7 @@ static int lj_get_local_variable(lua_State *L)
     /*   lj_err = (*lj_jvmti)->GetLocalInstance(lj_jvmti, get_current_java_thread(), depth-1, &val_l); */
     /* else */
     lj_err = (*lj_jvmti)->GetLocalObject(lj_jvmti, get_current_java_thread(),
-					 depth-1, slot, &val_l);
+										 depth-1, slot, &val_l);
     if (local_variable_is_nil(lj_err))
     {
       lua_pushnil(L);
@@ -1007,7 +1007,7 @@ static int lj_get_field(lua_State *L)
   lua_pop(L, 3);
 
   lj_err = (*lj_jvmti)->GetFieldName(lj_jvmti, field_id->class, field_id->field_id,
-				     NULL, &sig, NULL);
+									 NULL, &sig, NULL);
   lj_check_jvmti_error(L);
 
   if (*sig == 'L' || *sig == '[')

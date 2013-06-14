@@ -3,30 +3,30 @@
  */
 public class BasicTestClass {
     public static String someStaticMethod(String smth) {
-	return "You passed: " + smth;
+		return "You passed: " + smth;
     }
 
     private String myVal;
     public BasicTestClass(String val) {
-	myVal = val;
+		myVal = val;
     }
 
     public String getMyVal() {
-	return myVal;
+		return myVal;
     }
 
     private static Object runLock = new Object();
     public static void notifyRunLock() {
-	synchronized (runLock) {
-	    runLock.notify();
-	}
+		synchronized (runLock) {
+			runLock.notify();
+		}
     }
     public static void waitRunLock() {
-	synchronized (runLock) {
-	    runLock.notify();
-	}
+		synchronized (runLock) {
+			runLock.notify();
+		}
     }
     public static void main(String args[]) throws Exception {
-	Thread.sleep(3000);
+		Thread.sleep(3000);
     }
 }

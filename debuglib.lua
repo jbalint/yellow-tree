@@ -1,13 +1,13 @@
--- debuglib.lua
+-- debuglib.lua                              -*- indent-tabs-mode: nil -*-
 -- Commands implementing the debugger
 -- Loaded automatically at debugger start
 
- --   _____                                          _     
- --  / ____|                                        | |    
- -- | |     ___  _ __ ___  _ __ ___   __ _ _ __   __| |___ 
- -- | |    / _ \| '_ ` _ \| '_ ` _ \ / _` | '_ \ / _` / __|
- -- | |___| (_) | | | | | | | | | | | (_| | | | | (_| \__ \
- --  \_____\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|___/
+--   _____                                          _     
+--  / ____|                                        | |    
+-- | |     ___  _ __ ___  _ __ ___   __ _ _ __   __| |___ 
+-- | |    / _ \| '_ ` _ \| '_ ` _ \ / _` | '_ \ / _` / __|
+-- | |___| (_) | | | | | | | | | | | (_| | | | | (_| \__ \
+--  \_____\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|___/
 
 require("java_bridge")
 
@@ -60,7 +60,7 @@ function start_cmd()
    if options.runfile then
       local success, m2 = xpcall(loadfile(options.runfile), x)
       if success and not m2 then
-	 return true -- prevert restarting of start_cmd()
+         return true -- prevert restarting of start_cmd()
       end
    end
    dbgio:command_loop()
@@ -70,26 +70,26 @@ end
 -- Starts event processor
 -- ============================================================
 function start_evp()
-while true do
-   local event = events:pop()
-   --dbgio:print("Handling event ", dump(event))
-   if event.type == "breakpoint" then
-      local bp = event.data
-      depth = 1
-      dbgio:print()
-      dbgio:print(frame_get(1))
-      -- run handler if present and resume thread if requested
-      if bp.handler then
-	 local x = function (err)
-	    dbgio:print(debug.traceback("Error during bp.handler: " .. err, 2))
-	 end
-	 local success, m2 = xpcall(bp.handler, x, bp, event.thread)
-	 if success and m2 then
-	    thread_resume_monitor:notify_without_lock()
-	 end
+   while true do
+      local event = events:pop()
+      --dbgio:print("Handling event ", dump(event))
+      if event.type == "breakpoint" then
+         local bp = event.data
+         depth = 1
+         dbgio:print()
+         dbgio:print(frame_get(1))
+         -- run handler if present and resume thread if requested
+         if bp.handler then
+            local x = function (err)
+               dbgio:print(debug.traceback("Error during bp.handler: " .. err, 2))
+            end
+            local success, m2 = xpcall(bp.handler, x, bp, event.thread)
+            if success and m2 then
+               thread_resume_monitor:notify_without_lock()
+            end
+         end
       end
    end
-end
 end
 
 -- ============================================================
@@ -119,7 +119,7 @@ function stack_mt:__tostring()
    for i, f in ipairs(self) do
       -- TODO limit frame count to prevent printing unreasonably large stacks
       if depth == f.depth then
-	 disp = disp .. "*"
+         disp = disp .. "*"
       end
       disp = string.format("%s%s\n", disp, f)
    end
@@ -144,7 +144,7 @@ function locals()
    local var_table = frame.method_id.local_variable_table
    for k, v in pairs(var_table) do
       dbgio:print(string.format("%10s = %s", k,
-				 lj_get_local_variable(depth, v.slot, v.sig)))
+                                lj_get_local_variable(depth, v.slot, v.sig)))
    end
 end
 
@@ -160,9 +160,9 @@ function next_line(num)
    local line_nums = f.method_id.line_number_table
    for idx, ln in ipairs(line_nums) do
       if f.location < ln.location then
-	 next_line_location = ln.location
-	 next_line_method_id = f.method_id
-	 break
+         next_line_location = ln.location
+         next_line_method_id = f.method_id
+         break
       end
    end
 
@@ -230,7 +230,7 @@ function bp(method, line_num)
       local method_spec = method_decl_parse(method)
       b.method_id = lj_get_method_id(method_spec.class, method_spec.method, method_spec.args, method_spec.ret)
       if not b.method_id then
-	 error("Method not found")
+         error("Method not found")
       end
    elseif type(method) == "userdata" then
       b.method_id = method
@@ -243,8 +243,8 @@ function bp(method, line_num)
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
       if bp.method_id == b.method_id and bp.location == b.location then
-	 dbgio:print("Breakpoint already exists")
-	 return
+         dbgio:print("Breakpoint already exists")
+         return
       end
    end
 
@@ -252,11 +252,11 @@ function bp(method, line_num)
    setmetatable(b, b)
    b.__tostring = function(bp)
       local disp = string.format("%s.%s%s",
-				 bp.method_id.class.name,
-				 bp.method_id.name,
-				 bp.method_id.sig)
+                                 bp.method_id.class.name,
+                                 bp.method_id.name,
+                                 bp.method_id.sig)
       if (bp.line_num) then
-	 disp = disp .. " (line " .. bp.line_num .. ")"
+         disp = disp .. " (line " .. bp.line_num .. ")"
       end
       return disp
    end
@@ -276,8 +276,8 @@ function bl(num)
    if num then
       local bp = breakpoints[num]
       if not bp then
-	 dbgio:print("Invalid breakpoint")
-	 return
+         dbgio:print("Invalid breakpoint")
+         return
       end
       dbgio:print(string.format("%4d: %s", num, bp))
       return bp
@@ -302,10 +302,10 @@ function bc(num)
    -- clear all
    if not num then
       if #breakpoints == 0 then
-	 dbgio:print("No breakpoints")
+         dbgio:print("No breakpoints")
       end
       for i = 1, #breakpoints do
-	 bc(1)
+         bc(1)
       end
       return
    end
@@ -321,12 +321,12 @@ function bc(num)
    dbgio:print("cleared ", desc)
 end
 
- --       ___      ____  __ _______ _____    _____      _ _ _                _        
- --      | \ \    / /  \/  |__   __|_   _|  / ____|    | | | |              | |       
- --      | |\ \  / /| \  / |  | |    | |   | |     __ _| | | |__   __ _  ___| | _____ 
- --  _   | | \ \/ / | |\/| |  | |    | |   | |    / _` | | | '_ \ / _` |/ __| |/ / __|
- -- | |__| |  \  /  | |  | |  | |   _| |_  | |___| (_| | | | |_) | (_| | (__|   <\__ \
- --  \____/    \/   |_|  |_|  |_|  |_____|  \_____\__,_|_|_|_.__/ \__,_|\___|_|\_\___/
+--       ___      ____  __ _______ _____    _____      _ _ _                _        
+--      | \ \    / /  \/  |__   __|_   _|  / ____|    | | | |              | |       
+--      | |\ \  / /| \  / |  | |    | |   | |     __ _| | | |__   __ _  ___| | _____ 
+--  _   | | \ \/ / | |\/| |  | |    | |   | |    / _` | | | '_ \ / _` |/ __| |/ / __|
+-- | |__| |  \  /  | |  | |  | |   _| |_  | |___| (_| | | | |_) | (_| | (__|   <\__ \
+--  \____/    \/   |_|  |_|  |_|  |_____|  \_____\__,_|_|_|_.__/ \__,_|\___|_|\_\___/
 
 Event = {}
 function Event:new(thread, type, data)
@@ -334,8 +334,8 @@ function Event:new(thread, type, data)
    if event.type ~= "breakpoint" and
       event.type ~= "method_entry" and
       event.type ~= "method_exit" and
-      event.type ~= "single_step" then
-	 error("Invalid event type: " .. type)
+   event.type ~= "single_step" then
+      error("Invalid event type: " .. type)
    end
    return event
 end
@@ -348,7 +348,7 @@ function cb_breakpoint(thread, method_id, location)
    for idx, v in pairs(breakpoints) do
       -- TODO and test location
       if v.method_id == method_id then
-	 bp = v
+         bp = v
       end
    end
    assert(bp)
@@ -379,12 +379,12 @@ function init_jvmti_callbacks()
    lj_set_jvmti_callback("breakpoint", cb_breakpoint)
 end
 
- --  _    _ _   _ _     
- -- | |  | | | (_) |    
- -- | |  | | |_ _| |___ 
- -- | |  | | __| | / __|
- -- | |__| | |_| | \__ \
- --  \____/ \__|_|_|___/
+--  _    _ _   _ _     
+-- | |  | | | (_) |    
+-- | |  | | |_ _| |___ 
+-- | |  | | __| | / __|
+-- | |__| | |_| | \__ \
+--  \____/ \__|_|_|___/
 
 Frame = {}
 function Frame:new(thread, depth)
@@ -413,20 +413,20 @@ function Frame:__tostring()
    local line_num = -1
    for idx, ln in ipairs(self.method_id.line_number_table or {}) do
       if self.location >= ln.location then
-	 line_num = ln.line_num
+         line_num = ln.line_num
       else
-	 break
+         break
       end
    end
 
    return string.format("%6s %s.%s%s - %s (%s:%s)",
-			"[" .. self.depth .. "]",
-			self.method_id.class.name,
-			self.method_id.name,
-			self.method_id.sig,
-			self.location,
-			self.method_id.class.sourcefile or "<unknown>",
-			line_num)
+                        "[" .. self.depth .. "]",
+                        self.method_id.class.name,
+                        self.method_id.name,
+                        self.method_id.sig,
+                        self.location,
+                        self.method_id.class.sourcefile or "<unknown>",
+                        line_num)
 end
 
 -- ============================================================
@@ -468,11 +468,11 @@ function fq_class_search(pkg, previous_t)
    mt.__index = function(t, k)
       local class = lj_find_class(string.gsub(t.pkg .. "." .. k, "[.]", "/"))
       if class then
-	 -- we found a class
-	 return class
+         -- we found a class
+         return class
       else
-	 -- search another level of packages
-	 return fq_class_search(k, t)
+         -- search another level of packages
+         return fq_class_search(k, t)
       end
    end
    mt.__tostring = function(t)
@@ -522,9 +522,9 @@ function init_locals_environment()
       -- last possibility:
       -- start com.*.Class search
       for idx, tld in ipairs(java_pkg_tlds) do
-	 if k == tld then
-	    return fq_class_search(k, nil)
-	 end
+         if k == tld then
+            return fq_class_search(k, nil)
+         end
       end
    end
    mt.__newindex = function(t, k, v)
@@ -564,11 +564,11 @@ function method_location_for_line_num(method_id, line_num)
    if not lnt then return -1 end
    for idx, ln in ipairs(lnt) do
       if line_num == ln.line_num then
-	 return ln.location
+         return ln.location
       elseif line_num < ln.line_num and idx > 1 then
-	 return lnt[idx-1].location
+         return lnt[idx-1].location
       elseif line_num < ln.line_num then
-	 return 0
+         return 0
       end
    end
    return lnt[#lnt].location
@@ -581,13 +581,13 @@ function dump(o)
    if type(o) == 'table' then
       local s = '{ ' .. "\n"
       for k,v in pairs(o) do
-	 if type(k) == 'table' then
-	    k = dump(k)
-	 elseif type(k) ~= 'number' then
-	    k = '"'..k..'"'
-	 end
-	 s = s .. '['..k..'] = ' .. dump(v) .. ','
-	 s = s .. "\n"
+         if type(k) == 'table' then
+            k = dump(k)
+         elseif type(k) ~= 'number' then
+            k = '"'..k..'"'
+         end
+         s = s .. '['..k..'] = ' .. dump(v) .. ','
+         s = s .. "\n"
       end
       return s .. '} '
    else
@@ -633,7 +633,7 @@ function y()
    local main_thread
    for i, t in ipairs(threads) do
       if t.getName().toString() == "main" then
-	 main_thread = t
+         main_thread = t
       end
    end
    print(dump(main_thread))

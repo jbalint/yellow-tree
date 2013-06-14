@@ -79,8 +79,8 @@ void lua_start_cmd(const char *opts)
     if (lua_gettop(L) == 1)
     {
       int res = lua_toboolean(L, 1);
-      if (res)
-	break;
+	  if (res)
+		break;
     }
   }
 }
