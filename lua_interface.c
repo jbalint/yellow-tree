@@ -35,7 +35,7 @@ void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resum
 /* lazy, from 
 http://stackoverflow.com/questions/12256455/print-stacktrace-from-c-code-with-embedded-lua
 */
-static int traceback (lua_State *L) {
+/*static*/ int traceback (lua_State *L) {
   if (!lua_isstring(L, 1))  /* 'message' not a string? */
     return 1;  /* keep it intact */
   //lua_getfield(L, LUA_GLOBALSINDEX, "debug");
@@ -53,6 +53,15 @@ static int traceback (lua_State *L) {
   lua_pushinteger(L, 2);  /* skip this function and traceback */
   lua_call(L, 2, 1);  /* call debug.traceback */
   return 1;
+}
+
+int print_traceback (lua_State *L)
+{
+  const char *stack;
+  traceback(L);
+  stack = lua_tostring(L, -1);
+  fprintf(stderr, "Lua stack:\n%s\n", stack);
+  return 0;
 }
 
 void lua_start_cmd(const char *opts)
@@ -89,6 +98,8 @@ void lua_start_evp()
 {
   lua_State *L = lua_newthread(lua_state);
   lua_pushcfunction(L, traceback);
+  printf("******* Event processor disabled *******\n");
+  if (1) return;
   while (1)
   {
     lua_getglobal(L, "start_evp");
