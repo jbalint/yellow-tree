@@ -8,9 +8,9 @@ local lunit = require("lunit")
 
 -- specify tests here
 local tests = {}
-table.insert(tests, "test_basic.lua")
-table.insert(tests, "test_java_bridge_class.lua")
---table.insert(tests, "test_breakpoints.lua")
+--table.insert(tests, "test_basic.lua")
+--table.insert(tests, "test_java_bridge_class.lua")
+table.insert(tests, "test_breakpoints.lua")
 
 local stats = lunit.main(tests)
 if stats.errors > 0 or stats.failed > 0 then

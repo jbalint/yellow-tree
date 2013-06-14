@@ -4,14 +4,17 @@
 require("lunit")
 module("test_breakpoints", lunit.testcase, package.seeall)
 
+-- This is a bit of a weird case because of how the
 function test_breakpoint_setting_by_string()
+   local x = 1
    bp("java/lang/StringBuilder.append(Z)Ljava/lang/StringBuilder;")
-   bl()
-   bl()[1].handler = function () print("Ok, the bp has been hit!") return false end
-   g()
    assert_equal(1, #bl())
+   bl()[1].handler = function ()
+      x = 2
+      return true
+   end
    java.lang.StringBuilder.new().append(true)
-   print("OK!")
+   assert_equal(2, x)
 end
 
 function test_breakpoint_setting_by_method_id()

@@ -60,7 +60,7 @@ function start_cmd()
    if options.runfile then
       local success, m2 = xpcall(loadfile(options.runfile), x)
       if success and not m2 then
-	 return
+	 return true -- prevert restarting of start_cmd()
       end
    end
    dbgio:command_loop()
@@ -249,7 +249,8 @@ function bp(method, line_num)
    end
 
    -- add tostring()
-   (getmetatable(b) or (setmetatable(b, {}) and getmetatable(b))).__tostring = function(bp)
+   setmetatable(b, b)
+   b.__tostring = function(bp)
       local disp = string.format("%s.%s%s",
 				 bp.method_id.class.name,
 				 bp.method_id.name,
