@@ -1622,6 +1622,16 @@ static int lj_convert_to_global_ref(lua_State *L)
   return 1;
 }
 
+/* lj_force_early_return_void (thread) */
+static int lj_force_early_return_void(lua_State *L)
+{
+  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  lua_pop(L, 1);
+  lj_err = (*lj_jvmti)->ForceEarlyReturnVoid(lj_jvmti, thread);
+  lj_check_jvmti_error(L);
+  return 0;
+}
+
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -1681,6 +1691,8 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_array_element",          lj_get_array_element);
 
   lua_register(L, "lj_convert_to_global_ref",      lj_convert_to_global_ref);
+
+  lua_register(L, "lj_force_early_return_void",    lj_force_early_return_void);
 
   /* clear callback refs */
   lj_jvmti_callbacks.cb_breakpoint_ref = LUA_NOREF;

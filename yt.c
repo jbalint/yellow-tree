@@ -162,6 +162,7 @@ Agent_OnLoad(JavaVM *jvm, char *options, void *reserved)
   caps.can_access_local_variables = 1;
   caps.can_generate_single_step_events = 1; /* Used for line-oriented stepping */
 /*   caps.can_generate_frame_pop_events = 1; */
+  caps.can_force_early_return = 1;
 
   rc = (*jvm)->GetEnv(jvm, (void **)&jvmti, JVMTI_VERSION_1_0);
   if(rc < 0)
