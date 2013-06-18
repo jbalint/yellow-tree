@@ -405,9 +405,9 @@ static int lj_get_local_variable(lua_State *L)
     {
       lj_check_jvmti_error(L);
       if (!strcmp(type, "Z"))
-	lua_pushboolean(L, val_i);
+		lua_pushboolean(L, val_i);
       else
-	lua_pushinteger(L, val_i);
+		lua_pushinteger(L, val_i);
     }
   }
   else if (!strcmp(type, "J"))
