@@ -1283,12 +1283,19 @@ static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
   assert(lj_current_thread);
 
+  /* disable single step events for the duration of the callback to prevent recursion */
+  EV_DISABLET(SINGLE_STEP, get_current_java_thread());
+
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
   lua_pushinteger(L, location);
   lua_call(L, 3, 1);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
+
+  /* re-enable single step events unless they were disabled in the callback */
+  if (lj_jvmti_callbacks.cb_single_step_ref != LUA_NOREF)
+	EV_ENABLET(SINGLE_STEP, get_current_java_thread());
 }
 
 static void get_jvmti_callback_pointers(const char *callback,
@@ -1365,8 +1372,7 @@ static int lj_set_jvmti_callback(lua_State *L)
     EV_ENABLET(SINGLE_STEP, get_current_java_thread());
   }
 
-  get_jvmti_callback_pointers(callback,
-			      &jvmti_callback_ptr, &lj_callback_ptr, &ref_ptr);
+  get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, &lj_callback_ptr, &ref_ptr);
   *jvmti_callback_ptr = lj_callback_ptr;
   *ref_ptr = ref;
 

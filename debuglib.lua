@@ -60,7 +60,7 @@ end
 function Thread:handle_events()
    while true do
 	  local event = self.event_queue:pop()
-	  dbgio:debug("Thread ", self.name, " received event ", dump(event))
+	  --dbgio:debug("Thread ", self.name, " received event ", dump(event))
 	  if event.type == EventType.RESUME then
 		 return
 	  elseif event.type == EventType.COMMAND then
@@ -78,14 +78,14 @@ end
 threads = {}
 
 function current_thread()
-   local jthread = java.lang.Thread.currentThread():global_ref()
+   local jthread = java.lang.Thread.currentThread()
    local name = jthread.getName().toString()
-   dbgio:debug("current_thread() = " .. name)
    -- return thread object if already created
+   -- TODO track and remove with thread destroy event
    if threads[name] then
 	  return threads[name]
    end
-   local thread = Thread.new(jthread)
+   local thread = Thread.new(jthread:global_ref())
    threads[name] = thread
    dbgio:print("New Java thread: ", jthread)
    return thread
@@ -134,7 +134,7 @@ end
 -- ============================================================
 function g()
    if debug_thread ~= nil then
-	  local event = Event:new(current_thread(), EventType.RESUME)
+	  local event = Event:new(debug_thread, EventType.RESUME)
 	  debug_thread.event_queue:push(event)
    else
 	  thread_resume_monitor:notify_without_lock()
@@ -191,6 +191,14 @@ function locals()
 end
 
 -- ============================================================
+-- Move to the next executing line of the program
+-- Possible scenarios:
+--    1. the next line of code is encountered after one or
+--       more single step events
+--       a. This may involve a method call and a potentially
+--          very large number of single step events
+--    2. we are at the end of the method and continue to the
+--       method of the preceding stack frame
 -- ============================================================
 -- temporarily renamed from next() to next_line(),
 -- next() conflicts with lua interator function
@@ -204,18 +212,18 @@ function next_line(num)
       if f.location < ln.location then
          next_line_location = ln.location
          next_line_method_id = f.method_id
-         break
+         lj_set_jvmti_callback("single_step", cb_single_step)
+         lj_set_jvmti_callback("method_exit", cb_method_exit)
+         g()
+         return
       end
    end
 
-   -- TODO allow stepping up a frame....
    if not next_line_location then
-      dbgio:print("Cannot step to next line")
-      return nil
+      lj_set_jvmti_callback("method_exit", cb_method_exit)
+      g()
+      return
    end
-
-   lj_set_jvmti_callback("single_step", cb_single_step)
-   g()
 end
 
 -- ============================================================
@@ -415,19 +423,48 @@ function cb_method_entry(thread, method_id)
 end
 
 function cb_method_exit(thread, method_id, was_popped_by_exception, return_value)
+   debug_lock:lock()
+   debug_thread = current_thread()
+
+   dbgio:print(frame_get(depth))
+   debug_event:broadcast_without_lock()
+   debug_thread:handle_events()
+
+   debug_thread = nil
+   debug_lock:unlock()
 end
 
 function cb_single_step(thread, method_id, location)
-   -- TODO need more thread sync around this?
+   debug_lock:lock()
+   debug_thread = current_thread()
+
+   if next_line_method_id ~= method_id then
+      -- single stepped into a different method, disable single steps until
+      -- it exits
+      lj_clear_jvmti_callback("single_step")
+      local previous_frame_count = lj_get_frame_count()
+      local check_nested_method_return = function(thread, method_id, was_popped_by_exception, return_value)
+         if lj_get_frame_count() == previous_frame_count then
+            lj_set_jvmti_callback("method_exit", cb_method_exit)
+            lj_set_jvmti_callback("single_step", cb_single_step)
+         end
+      end
+      lj_set_jvmti_callback("method_exit", check_nested_method_return)
+   end
+
    if next_line_location and location >= next_line_location and next_line_method_id == method_id then
       local data = {method_id=method_id, location=location}
       lj_clear_jvmti_callback("single_step")
+      lj_clear_jvmti_callback("method_exit")
       next_line_location = nil
       next_line_method_id = nil
       dbgio:print(frame_get(depth))
-      --events:push(Event:new(debug_thread, "single_step", data))
-      thread_resume_monitor:wait_without_lock()
+   	  debug_event:broadcast_without_lock()
+	  debug_thread:handle_events()
    end
+
+   debug_thread = nil
+   debug_lock:unlock()
 end
 
 function init_jvmti_callbacks()
