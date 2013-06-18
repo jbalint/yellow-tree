@@ -403,10 +403,7 @@ function cb_breakpoint(thread, method_id, location)
    end
    
    if need_to_handle_events then
-	  debug_event:lock()
-	  debug_event:broadcast()
-	  debug_event:unlock()
-
+	  debug_event:broadcast_without_lock()
 	  debug_thread:handle_events()
    end
 
