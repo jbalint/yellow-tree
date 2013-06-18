@@ -572,7 +572,7 @@ static int lj_call_method(lua_State *L)
   ret = luaL_checkstring(L, 4);
   argcount = luaL_checkinteger(L, 5);
 
-  (*lj_jvmti)->GetMethodName(lj_jvmti, method_id, &method_name, NULL, NULL);
+  lj_err = (*lj_jvmti)->GetMethodName(lj_jvmti, method_id, &method_name, NULL, NULL);
   lj_check_jvmti_error(L);
 
   if (argcount > 0)
