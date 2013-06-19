@@ -11,6 +11,51 @@
 
 static lua_State *lua_state;
 
+/* lazy, from 
+http://stackoverflow.com/questions/12256455/print-stacktrace-from-c-code-with-embedded-lua
+*/
+int traceback (lua_State *L) {
+  if (!lua_isstring(L, 1))  /* 'message' not a string? */
+    return 1;  /* keep it intact */
+  lua_getglobal(L, "debug");
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    return 1;
+  }
+  lua_getfield(L, -1, "traceback");
+  if (!lua_isfunction(L, -1)) {
+    lua_pop(L, 2);
+    return 1;
+  }
+  lua_pushvalue(L, 1);  /* pass error message */
+  lua_pushinteger(L, 2);  /* skip this function and traceback */
+  lua_call(L, 2, 1);  /* call debug.traceback */
+  return 1;
+}
+
+int print_traceback (lua_State *L, const char *msg)
+{
+  const char *stack;
+  lua_pushstring(L, msg);
+  traceback(L);
+  stack = lua_tostring(L, -1);
+  fprintf(stderr, "%s\n", stack);
+  return 0;
+}
+
+int lua_interface_error(lua_State *L, const char *format, ...)
+{
+  va_list ap;
+  char msg[500];
+  va_start(ap, format);
+  vsprintf(msg, format, ap);
+  fflush(stdout);
+  va_end(ap);
+  lua_pushstring(L, msg);
+  traceback(L);
+  return lua_error(L);
+}
+
 void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resume_monitor)
 {
   lua_state = luaL_newstate();
@@ -30,38 +75,6 @@ void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resum
   }
   new_jmonitor(lua_state, thread_resume_monitor, "yellow_tree_thread_resume_monitor");
   lua_setglobal(lua_state, "thread_resume_monitor");
-}
-
-/* lazy, from 
-http://stackoverflow.com/questions/12256455/print-stacktrace-from-c-code-with-embedded-lua
-*/
-/*static*/ int traceback (lua_State *L) {
-  if (!lua_isstring(L, 1))  /* 'message' not a string? */
-    return 1;  /* keep it intact */
-  //lua_getfield(L, LUA_GLOBALSINDEX, "debug");
-  lua_getglobal(L, "debug");
-  if (!lua_istable(L, -1)) {
-    lua_pop(L, 1);
-    return 1;
-  }
-  lua_getfield(L, -1, "traceback");
-  if (!lua_isfunction(L, -1)) {
-    lua_pop(L, 2);
-    return 1;
-  }
-  lua_pushvalue(L, 1);  /* pass error message */
-  lua_pushinteger(L, 2);  /* skip this function and traceback */
-  lua_call(L, 2, 1);  /* call debug.traceback */
-  return 1;
-}
-
-int print_traceback (lua_State *L)
-{
-  const char *stack;
-  traceback(L);
-  stack = lua_tostring(L, -1);
-  fprintf(stderr, "Lua stack:\n%s\n", stack);
-  return 0;
 }
 
 void lua_start_cmd(const char *opts)

@@ -6,6 +6,7 @@
 
 #include "myjni.h"
 #include "jni_util.h"
+#include "lua_interface.h"
 #include "lua_java.h"
 
  /*  _    _ _   _ _      */
@@ -54,7 +55,7 @@ void lj_check_jvmti_error(lua_State *L)
   if (IsDebuggerPresent())
     DebugBreak();
 
-  (void)luaL_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
+  (void)lua_interface_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
 }
 
 /* allocate a new userdata object for a jmethodID */
@@ -258,7 +259,7 @@ static int lj_get_local_variable_table(lua_State *L)
 
   lj_err = (*lj_jvmti)->GetLocalVariableTable(lj_jvmti, method_id, &count, &vars);
   if (lj_err == JVMTI_ERROR_ABSENT_INFORMATION ||
-	  lj_err == JVMTI_ERROR_NATIVE_METHOD)
+	  lj_err == 9999999)
   {
     lua_pushnil(L);
     return 1;
@@ -623,7 +624,7 @@ static int lj_call_method(lua_State *L)
     }
     else
     {
-      (void)luaL_error(L, "Unknown argument type '%s' for argument %d\n", argtype, i);
+      (void)lua_interface_error(L, "Unknown argument type '%s' for argument %d\n", argtype, i);
     }
   }
 
@@ -728,7 +729,7 @@ static int lj_call_method(lua_State *L)
   }
   else
   {
-    luaL_error(L, "Unknown return type '%s'", ret);
+    (void)lua_interface_error(L, "Unknown return type '%s'", ret);
   }
 
   if (argcount > 0)
@@ -1391,7 +1392,7 @@ static int lj_get_array_element(lua_State *L)
     lua_pushnumber(L, val.d);
     break;
   default:
-    (void)luaL_error(L, "Unknown array class: %s\n", class_name);
+    (void)lua_interface_error(L, "Unknown array class: %s\n", class_name);
   }
 
   return 1;
