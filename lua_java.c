@@ -1371,6 +1371,10 @@ static int lj_set_jvmti_callback(lua_State *L)
   {
     EV_ENABLET(SINGLE_STEP, get_current_java_thread());
   }
+  else if (!strcmp(callback, "method_exit"))
+  {
+	EV_ENABLET(METHOD_EXIT, get_current_java_thread());
+  }
 
   get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, &lj_callback_ptr, &ref_ptr);
   *jvmti_callback_ptr = lj_callback_ptr;
@@ -1397,6 +1401,10 @@ static int lj_clear_jvmti_callback(lua_State *L)
   if (!strcmp(callback, "single_step"))
   {
     EV_DISABLET(SINGLE_STEP, get_current_java_thread());
+  }
+  else if (!strcmp(callback, "method_exit"))
+  {
+	EV_DISABLET(METHOD_EXIT, get_current_java_thread());
   }
 
   get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, NULL, &ref_ptr);
