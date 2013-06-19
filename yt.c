@@ -50,19 +50,6 @@ check_jvmti_error(jvmtiEnv *jvmti, jvmtiError jerr)
   return jerr;
 }
 
-#define EV_ENABLE(EVTYPE) \
-  (Gagent.jerr = event_change(Gagent.jvmti, JVMTI_ENABLE, \
-							  JVMTI_EVENT_##EVTYPE, NULL))
-#define EV_ENABLET(EVTYPE, EVTHR) \
-  (Gagent.jerr = event_change(Gagent.jvmti, JVMTI_ENABLE, \
-							  JVMTI_EVENT_##EVTYPE, (EVTHR)))
-#define EV_DISABLE(EVTYPE) \
-  (Gagent.jerr = event_change(Gagent.jvmti, JVMTI_DISABLE, \
-							  JVMTI_EVENT_##EVTYPE, NULL))
-#define EV_DISABLET(EVTYPE, EVTHR) \
-  (Gagent.jerr = event_change(Gagent.jvmti, JVMTI_DISABLE, \
-							  JVMTI_EVENT_##EVTYPE, (EVTHR)))
-
 static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
 {
   lua_start_cmd(agent_options);
@@ -83,9 +70,6 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   jstring cmd_thread_name;
   jstring evp_thread_name;
   jrawMonitorID thread_resume_monitor;
-
-  /* Enable event notifications (these must be set in live phase) */
-  EV_ENABLE(BREAKPOINT);
 
   /* create raw monitor used for sync with the Lua environment */
   (*Gagent.jvmti)->CreateRawMonitor(Gagent.jvmti, "yellow_tree_thread_resume_monitor", &thread_resume_monitor);
@@ -184,12 +168,12 @@ Agent_OnLoad(JavaVM *jvm, char *options, void *reserved)
   Gagent.jerr = (*Gagent.jvmti)->SetEventCallbacks(Gagent.jvmti,
 												   evCbs, sizeof(jvmtiEventCallbacks));
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-  EV_ENABLE(VM_INIT);
-  EV_ENABLE(VM_DEATH);
-/*   EV_ENABLE(THREAD_START); */
-/*   EV_ENABLE(THREAD_END); */
   /* Check that any calls to SetEventNotificationMode are valid in the
      OnLoad phase before calling here. */
+  Gagent.jerr = event_change(Gagent.jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_INIT, NULL);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+  Gagent.jerr = event_change(Gagent.jvmti, JVMTI_ENABLE, JVMTI_EVENT_VM_DEATH, NULL);
+  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 
   return JNI_OK;
 }

@@ -15,5 +15,6 @@ void new_jmethod_id(lua_State *L, jmethodID method_id);
 void new_jfield_id(lua_State *L, jfieldID field_id, jclass class);
 void new_jobject(lua_State *L, jobject object);
 void new_jmonitor(lua_State *L, jrawMonitorID monitor, const char *name);
+jobject get_current_java_thread();
 
 #endif /* LUA_JAVA_H_ */
