@@ -37,6 +37,30 @@ void lj_init_jvmti_event()
   lj_jvmti_callbacks.cb_single_step_ref = LUA_NOREF;
 }
 
+static void disable_events_before_callback_handling(lua_State *L)
+{
+  /* disable events for the duration of the callback to prevent re-entering */
+  lj_err = EV_DISABLET(SINGLE_STEP, get_current_java_thread());
+  lj_check_jvmti_error(L);
+  lj_err = EV_DISABLET(METHOD_EXIT, get_current_java_thread());
+  lj_check_jvmti_error(L);
+}
+
+static void enable_events_after_callback_handling(lua_State *L)
+{
+  /* re-enable events unless they are disabled (maybe have been changed during callback) */
+  if (lj_jvmti_callbacks.cb_single_step_ref != LUA_NOREF)
+  {
+	lj_err = EV_ENABLET(SINGLE_STEP, get_current_java_thread());
+	lj_check_jvmti_error(lj_L);
+  }
+  else if (lj_jvmti_callbacks.cb_method_exit_ref != LUA_NOREF)
+  {
+	lj_err = EV_ENABLET(METHOD_EXIT, get_current_java_thread());
+	lj_check_jvmti_error(lj_L);
+  }
+}
+
 static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 								  jmethodID method_id, jlocation location)
 {
@@ -53,12 +77,16 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
   assert(lj_current_thread);
 
+  disable_events_before_callback_handling(lj_L);
+
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
   lua_pushinteger(L, location);
   lua_call(L, 3, 1);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
+
+  enable_events_after_callback_handling(lj_L);
 }
 
 static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id)
@@ -74,11 +102,15 @@ static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread
   lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
   assert(lj_current_thread);
 
+  disable_events_before_callback_handling(lj_L);
+
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
   lua_call(L, 2, 1);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
+
+  enable_events_after_callback_handling(lj_L);
 }
 
 static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
@@ -95,6 +127,8 @@ static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
   assert(lj_current_thread);
 
+  disable_events_before_callback_handling(lj_L);
+
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
@@ -102,6 +136,8 @@ static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   /* TODO return_value must be passed to Lua */
   lua_call(L, 3, 1);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
+
+  enable_events_after_callback_handling(lj_L);
 }
 
 static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
@@ -118,9 +154,7 @@ static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
   assert(lj_current_thread);
 
-  /* disable single step events for the duration of the callback to prevent recursion */
-  lj_err = EV_DISABLET(SINGLE_STEP, get_current_java_thread());
-  lj_check_jvmti_error(L);
+  disable_events_before_callback_handling(lj_L);
 
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
@@ -129,12 +163,7 @@ static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   lua_call(L, 3, 1);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 
-  /* re-enable single step events unless they were disabled in the callback */
-  if (lj_jvmti_callbacks.cb_single_step_ref != LUA_NOREF)
-  {
-	lj_err = EV_ENABLET(SINGLE_STEP, get_current_java_thread());
-	lj_check_jvmti_error(lj_L);
-  }
+  enable_events_after_callback_handling(lj_L);
 }
 
 static void get_jvmti_callback_pointers(const char *callback,
