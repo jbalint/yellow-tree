@@ -219,11 +219,9 @@ function next_line(num)
       end
    end
 
-   if not next_line_location then
-      lj_set_jvmti_callback("method_exit", cb_method_exit)
-      g()
-      return
-   end
+   -- fallback to step out of method (from last line of method)
+   lj_set_jvmti_callback("method_exit", cb_method_exit)
+   g()
 end
 
 -- ============================================================
@@ -450,12 +448,10 @@ function cb_single_step(thread, method_id, location)
          end
       end
       lj_set_jvmti_callback("method_exit", check_nested_method_return)
-   end
-
-   if next_line_location and location >= next_line_location and next_line_method_id == method_id then
+   elseif next_line_location and location >= next_line_location and next_line_method_id == method_id then
       local data = {method_id=method_id, location=location}
-      lj_clear_jvmti_callback("single_step")
       lj_clear_jvmti_callback("method_exit")
+      lj_clear_jvmti_callback("single_step")
       next_line_location = nil
       next_line_method_id = nil
       dbgio:print(frame_get(depth))
