@@ -126,7 +126,6 @@ function start_cmd()
 		 debug_thread.event_queue:push(event)
 	  end
    end
-   dbgio:command_loop()
 end
 
 -- ============================================================

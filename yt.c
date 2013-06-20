@@ -55,20 +55,13 @@ static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
   lua_start_cmd(agent_options);
 }
 
-static void JNICALL event_processor_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
-{
-  lua_start_evp();
-}
-
 static void JNICALL
 cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
 {
   jclass thread_class;
   jmethodID thread_ctor;
   jthread cmd_thread;
-  jthread evp_thread;
   jstring cmd_thread_name;
-  jstring evp_thread_name;
   jrawMonitorID thread_resume_monitor;
 
   /* create raw monitor used for sync with the Lua environment */
@@ -94,15 +87,6 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
   cmd_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, cmd_thread_name);
   assert(cmd_thread);
   (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, cmd_thread, command_loop_thread,
-  								  NULL, JVMTI_THREAD_NORM_PRIORITY);
-  check_jvmti_error(Gagent.jvmti, Gagent.jerr);
-
-  /* start and run the debugger event processor */
-  evp_thread_name = (*jni)->NewStringUTF(jni, "Yellow Tree Event Processor");
-  assert(evp_thread_name);
-  evp_thread = (*jni)->NewObject(jni, thread_class, thread_ctor, evp_thread_name);
-  assert(evp_thread);
-  (*Gagent.jvmti)->RunAgentThread(Gagent.jvmti, evp_thread, event_processor_thread,
   								  NULL, JVMTI_THREAD_NORM_PRIORITY);
   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
 

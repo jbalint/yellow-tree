@@ -259,7 +259,7 @@ static int lj_get_local_variable_table(lua_State *L)
 
   lj_err = (*lj_jvmti)->GetLocalVariableTable(lj_jvmti, method_id, &count, &vars);
   if (lj_err == JVMTI_ERROR_ABSENT_INFORMATION ||
-	  lj_err == 9999999)
+	  lj_err == JVMTI_ERROR_NATIVE_METHOD)
   {
     lua_pushnil(L);
     return 1;

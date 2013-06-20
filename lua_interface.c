@@ -106,20 +106,3 @@ void lua_start_cmd(const char *opts)
     }
   }
 }
-
-void lua_start_evp()
-{
-  lua_State *L = lua_newthread(lua_state);
-  lua_pushcfunction(L, traceback);
-  printf("******* Event processor disabled *******\n");
-  if (1) return;
-  while (1)
-  {
-    lua_getglobal(L, "start_evp");
-    if (lua_pcall(L, 0, 0, -2))
-    {
-      fprintf(stderr, "Error during event processor: %s\n", lua_tostring(L, -1));
-      lua_pop(L, 1);
-    }
-  }
-}
