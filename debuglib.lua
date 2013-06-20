@@ -404,8 +404,8 @@ function cb_breakpoint(thread, method_id, location)
 		 dbgio:print(debug.traceback("Error during bp.handler: " .. err, 2))
 	  end
 	  local success, m2 = xpcall(bp.handler, x, bp, debug_thread)
-	  -- return true means we resume the thread
-	  if success and m2 then
+	  -- return false/nil (no return) means we resume the thread
+	  if success and not m2 then
 		 need_to_handle_events = false
 	  end
    end
