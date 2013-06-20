@@ -286,6 +286,9 @@ function bp(method, line_num)
    end
 
    b.location = method_location_for_line_num(b.method_id, b.line_num)
+   if b.location < 0 then
+      b.location = 0
+   end
 
    -- make sure bp doesn't already exist
    for idx, bp in ipairs(breakpoints) do
