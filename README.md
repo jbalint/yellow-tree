@@ -3,6 +3,7 @@ yellow-tree
 Yellow Tree is a Java debugger.
 
 See documentation:
+* [Configuration](configuration.md)
 * [Java Bridge](java_bridge.md)
 
 Status
@@ -13,7 +14,7 @@ As of April 2013, Yellow Tree is used on:
 
 Limitations
 ===========
-* Array types are universally unsupported in the JNI code
+* ...
 
 Installation
 ============
