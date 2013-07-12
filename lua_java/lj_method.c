@@ -108,6 +108,37 @@ static int lj_get_local_variable_table(lua_State *L)
   return 1;
 }
 
+static int lj_get_line_number_table(lua_State *L)
+{
+  jmethodID method_id;
+  jint line_count;
+  jvmtiLineNumberEntry *lines;
+  int i;
+
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  lua_pop(L, 1);
+
+  lj_err = (*current_jvmti())->GetLineNumberTable(current_jvmti(), method_id, &line_count, &lines);
+  if (lj_err == JVMTI_ERROR_NATIVE_METHOD ||
+      lj_err == JVMTI_ERROR_ABSENT_INFORMATION) {
+    lua_pushnil(L);
+  } else {
+    lua_newtable(L);
+    for (i = 0; i < line_count; ++i)
+    {
+      lua_newtable(L);
+      lua_pushinteger(L, lines[i].start_location);
+      lua_setfield(L, -2, "location");
+      lua_pushinteger(L, lines[i].line_number);
+      lua_setfield(L, -2, "line_num");
+      lua_rawseti(L, -2, i+1);
+    }
+    lj_check_jvmti_error(L);
+  }
+
+  return 1;
+}
+
 static int lj_get_method_name(lua_State *L)
 {
   jmethodID method_id;
@@ -206,6 +237,7 @@ void lj_method_register(lua_State *L)
 {
   lua_register(L, "lj_get_method_id",              lj_get_method_id);
   lua_register(L, "lj_get_local_variable_table",   lj_get_local_variable_table);
+  lua_register(L, "lj_get_line_number_table",      lj_get_line_number_table);
   lua_register(L, "lj_get_method_name",            lj_get_method_name);
   lua_register(L, "lj_get_method_declaring_class", lj_get_method_declaring_class);
   lua_register(L, "lj_get_method_modifiers",       lj_get_method_modifiers);

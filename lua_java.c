@@ -27,11 +27,6 @@ jthread lj_current_thread;
 
 /* needed to have a lua state at jvmti callback */
 lua_State *lj_L;
-/* we need to keep class paired with field_id due to JVMTI API */
-typedef struct {
-  jfieldID field_id;
-  jclass class;
-} lj_field_id;
 
 /* marker where NULL is used as a jthread param for current thread */
 #define NULL_JTHREAD NULL
@@ -385,57 +380,6 @@ static int lj_pointer_to_string(lua_State *L)
   return 1;
 }
 
-static int lj_get_class_methods(lua_State *L)
-{
-  jint method_count;
-  jmethodID *methods;
-  jclass class;
-  int i;
-
-  class = *(jclass *)luaL_checkudata(L, 1, "jobject_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetClassMethods(lj_jvmti, class, &method_count, &methods);
-  lj_check_jvmti_error(L);
-
-  lua_newtable(L);
-
-  for (i = 0; i < method_count; ++i)
-  {
-    new_jmethod_id(L, methods[i]);
-    lua_rawseti(L, -2, i+1);
-  }
-
-  free_jvmti_refs(lj_jvmti, methods, (void *)-1);
-
-  return 1;
-}
-
-static int lj_find_class(lua_State *L)
-{
-  JNIEnv *jni = current_jni();
-  jclass class;
-  const char *class_name;
-
-  class_name = luaL_checkstring(L, 1);
-  lua_pop(L, 1);
-
-  class = (*jni)->FindClass(jni, class_name);
-  if (class == NULL)
-  {
-	/* most of the time, we'll be getting NoClassDefFoundError.
-	   It's not worth the effort to detect and report other exceptions here... */
-	(*jni)->ExceptionClear(jni);
-	lua_pushnil(L);
-  }
-  else
-  {
-	new_jobject(L, class);
-  }
-
-  return 1;
-}
-
 /**
  * Calling a Java method requires the following parameters:
  * - object - target of method call
@@ -686,113 +630,6 @@ static int lj_toString(lua_State *L)
   return 1;
 }
 
-static int lj_get_field_name(lua_State *L)
-{
-  lj_field_id *field_id;
-  char *field_name;
-  char *sig;
-
-  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetFieldName(lj_jvmti, field_id->class, field_id->field_id, &field_name, &sig, NULL);
-  lj_check_jvmti_error(L);
-
-  lua_newtable(L);
-
-  lua_pushstring(L, field_name);
-  lua_setfield(L, -2, "name");
-  lua_pushstring(L, sig);
-  lua_setfield(L, -2, "sig");
-
-  return 1;
-}
-
-static int lj_get_field_declaring_class(lua_State *L)
-{
-  lj_field_id *field_id;
-  jclass class;
-
-  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetFieldDeclaringClass(lj_jvmti, field_id->class, field_id->field_id, &class);
-  lj_check_jvmti_error(L);
-
-  new_jobject(L, class);
-
-  return 1;
-}
-
-static int lj_get_field_id(lua_State *L)
-{
-  JNIEnv *jni = current_jni();
-  jclass class;
-  jfieldID field_id;
-  const char *class_name;
-  const char *field_name;
-  const char *sig;
-
-  class_name = luaL_checkstring(L, 1);
-  field_name = luaL_checkstring(L, 2);
-  sig = luaL_checkstring(L, 3);
-  lua_pop(L, 3);
-
-  /* get class */
-  class = (*jni)->FindClass(jni, class_name);
-  EXCEPTION_CLEAR(jni);
-  if (class == NULL)
-  {
-    lua_pushnil(L);
-    return 1;
-  }
-
-  /* try instance field */
-  field_id = (*jni)->GetFieldID(jni, class, field_name, sig);
-  EXCEPTION_CLEAR(jni);
-
-  /* otherwise try static field */
-  if (field_id == NULL)
-    field_id = (*jni)->GetStaticFieldID(jni, class, field_name, sig);
-  EXCEPTION_CLEAR(jni);
-
-  if (field_id == NULL)
-  {
-    lua_pushnil(L);
-    return 1;
-  }
-
-  new_jfield_id(L, field_id, class);
-
-  return 1;
-}
-
-static int lj_get_class_fields(lua_State *L)
-{
-  jint field_count;
-  jfieldID *fields;
-  jclass class;
-  int i;
-
-  class = *(jclass *)luaL_checkudata(L, 1, "jobject_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetClassFields(lj_jvmti, class, &field_count, &fields);
-  lj_check_jvmti_error(L);
-
-  lua_newtable(L);
-
-  for (i = 0; i < field_count; ++i)
-  {
-    new_jfield_id(L, fields[i], class);
-    lua_rawseti(L, -2, i+1);
-  }
-
-  free_jvmti_refs(lj_jvmti, fields, (void *)-1);
-
-  return 1;
-}
-
 static int lj_get_field(lua_State *L)
 {
   JNIEnv *jni = current_jni();
@@ -897,108 +734,6 @@ static int lj_get_field(lua_State *L)
   {
     lj_print_message("Unknown return type '%s' for field\n", sig);
     lua_pushnil(L);
-  }
-
-  return 1;
-}
-
-static int lj_get_field_modifiers(lua_State *L)
-{
-  jint modifiers;
-  lj_field_id *field_id;
-
-  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetFieldModifiers(lj_jvmti, field_id->class, field_id->field_id, &modifiers);
-  lj_check_jvmti_error(L);
-
-  lua_pushinteger(L, modifiers);
-
-  return 1;
-}
-
-static int lj_get_field_modifiers_table(lua_State *L)
-{
-  lua_Integer modifiers;
-
-  modifiers = luaL_checkinteger(L, 1);
-  lua_pop(L, 1);
-
-  /* do all this in C because there are no bitwise ops in Lua */
-  lua_newtable(L);
-
-  /* http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.5 */
-  lua_pushboolean(L, modifiers & JVM_ACC_PUBLIC);
-  lua_setfield(L, -2, "public");
-  lua_pushboolean(L, modifiers & JVM_ACC_PRIVATE);
-  lua_setfield(L, -2, "private");
-  lua_pushboolean(L, modifiers & JVM_ACC_PROTECTED);
-  lua_setfield(L, -2, "protected");
-  lua_pushboolean(L, modifiers & JVM_ACC_STATIC);
-  lua_setfield(L, -2, "static");
-  lua_pushboolean(L, modifiers & JVM_ACC_FINAL);
-  lua_setfield(L, -2, "final");
-  lua_pushboolean(L, modifiers & JVM_ACC_SYNCHRONIZED);
-  lua_setfield(L, -2, "volatile");
-  lua_pushboolean(L, modifiers & JVM_ACC_TRANSIENT);
-  lua_setfield(L, -2, "transient");
-  lua_pushboolean(L, modifiers & JVM_ACC_SYNTHETIC);
-  lua_setfield(L, -2, "synthetic");
-  lua_pushboolean(L, modifiers & JVM_ACC_ENUM);
-  lua_setfield(L, -2, "enum");
-
-  return 1;
-}
-
-static int lj_get_source_filename(lua_State *L)
-{
-  jobject class;
-  char *sourcefile;
-
-  class = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetSourceFileName(lj_jvmti, class, &sourcefile);
-  if (lj_err == JVMTI_ERROR_ABSENT_INFORMATION)
-  {
-    lua_pushnil(L);
-  }
-  else
-  {
-    lj_check_jvmti_error(L);
-    lua_pushstring(L, sourcefile);
-  }
-
-  return 1;
-}
-
-static int lj_get_line_number_table(lua_State *L)
-{
-  jmethodID method_id;
-  jint line_count;
-  jvmtiLineNumberEntry *lines;
-  int i;
-
-  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->GetLineNumberTable(lj_jvmti, method_id, &line_count, &lines);
-  if (lj_err == JVMTI_ERROR_NATIVE_METHOD ||
-      lj_err == JVMTI_ERROR_ABSENT_INFORMATION) {
-    lua_pushnil(L);
-  } else {
-    lua_newtable(L);
-    for (i = 0; i < line_count; ++i)
-    {
-      lua_newtable(L);
-      lua_pushinteger(L, lines[i].start_location);
-      lua_setfield(L, -2, "location");
-      lua_pushinteger(L, lines[i].line_number);
-      lua_setfield(L, -2, "line_num");
-      lua_rawseti(L, -2, i+1);
-    }
-    lj_check_jvmti_error(L);
   }
 
   return 1;
@@ -1163,16 +898,22 @@ int lj_set_jvmti_callback(lua_State *L);
 int lj_clear_jvmti_callback(lua_State *L);
 void lj_init_jvmti_event();
 
-/* registration for lj_raw_monitor.c */
-void lj_raw_monitor_register(lua_State *L);
-/* registration for lj_method.c */
+/* registration for subordinate .c fields */
+void lj_class_register(lua_State *L);
+void lj_field_register(lua_State *L);
 void lj_method_register(lua_State *L);
+void lj_raw_monitor_register(lua_State *L);
 
 void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 {
   lj_L = L;
 
   /* add C functions */
+  lj_class_register(L);
+  lj_field_register(L);
+  lj_method_register(L);
+  lj_raw_monitor_register(L);
+
   lua_register(L, "lj_get_frame_count",            lj_get_frame_count);
   lua_register(L, "lj_get_stack_frame",            lj_get_stack_frame);
 
@@ -1181,27 +922,13 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 
   lua_register(L, "lj_get_local_variable",         lj_get_local_variable);
   lua_register(L, "lj_pointer_to_string",          lj_pointer_to_string);
-  lua_register(L, "lj_get_class_methods",          lj_get_class_methods);
-  lua_register(L, "lj_find_class",                 lj_find_class);
   lua_register(L, "lj_call_method",                lj_call_method);
   lua_register(L, "lj_toString",                   lj_toString);
 
-  lua_register(L, "lj_get_field_name",             lj_get_field_name);
-  lua_register(L, "lj_get_field_declaring_class",  lj_get_field_declaring_class);
-  lua_register(L, "lj_get_field_id",               lj_get_field_id);
-  lua_register(L, "lj_get_class_fields",           lj_get_class_fields);
   lua_register(L, "lj_get_field",                  lj_get_field);
-  lua_register(L, "lj_get_field_modifiers",        lj_get_field_modifiers);
-  lua_register(L, "lj_get_field_modifiers_table",  lj_get_field_modifiers_table);
-
-  lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
-  lua_register(L, "lj_get_line_number_table",      lj_get_line_number_table);
 
   lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
   lua_register(L, "lj_get_all_threads",            lj_get_all_threads);
-
-  lj_method_register(L);
-  lj_raw_monitor_register(L);
 
   lua_register(L, "lj_get_array_length",           lj_get_array_length);
   lua_register(L, "lj_get_array_element",          lj_get_array_element);
