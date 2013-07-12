@@ -17,10 +17,10 @@ local function find_methods(class, name)
    local superclass_method_id = lj_get_method_id("java/lang/Class", "getSuperclass", "", "Ljava/lang/Class;")
    while class do
       for idx, method_id in pairs(lj_get_class_methods(class)) do
-	 -- match literal method names or "new" for constructors
-	 if method_id.name == name or (method_id.name == "<init>" and name == "new") then
-	    table.insert(methods, method_id)
-	 end
+		 -- match literal method names or "new" for constructors
+		 if method_id.name == name or (method_id.name == "<init>" and name == "new") then
+			table.insert(methods, method_id)
+		 end
       end
       class = lj_call_method(class, superclass_method_id, false, "L", 0)
    end
@@ -33,9 +33,9 @@ local function find_field(class, name)
    local superclass_method_id = lj_get_method_id("java/lang/Class", "getSuperclass", "", "Ljava/lang/Class;")
    while class do
       for idx, field_id in pairs(lj_get_class_fields(class)) do
-	 if field_id.name == name then
-	    return field_id
-	 end
+		 if field_id.name == name then
+			return field_id
+		 end
       end
       class = lj_call_method(class, superclass_method_id, false, "L", 0)
    end
@@ -49,7 +49,7 @@ local function get_ret_type(method_id)
       ret = "STR"
    elseif string.sub(ret, 1, 1) == "L" then
       ret = "L"
-   -- return an object for constructors
+	  -- return an object for constructors
    elseif method_id.name == "<init>" then
       ret = "L"
    end
@@ -65,18 +65,18 @@ local function parse_arg_spec(argspec)
       local char1 = string.sub(argspec, 1, 1)
       local char2 = string.sub(argspec, 2, 2)
       if char1 == "L" or (char1 == "[" and char2 == "L") then
-	 -- object / object array
-	 local endi = string.find(argspec, ";")
-	 table.insert(argarray, string.sub(argspec, 1, endi))
-	 argspec = string.sub(argspec, endi + 1)
+		 -- object / object array
+		 local endi = string.find(argspec, ";")
+		 table.insert(argarray, string.sub(argspec, 1, endi))
+		 argspec = string.sub(argspec, endi + 1)
       elseif char1 == "[" then
-	 -- primitive array
-	 table.insert(argarray, char1 .. char2)
-	 argspec = string.sub(argspec, 3)
+		 -- primitive array
+		 table.insert(argarray, char1 .. char2)
+		 argspec = string.sub(argspec, 3)
       else
-	 -- assume primitive type (single char)
-	 table.insert(argarray, char1)
-	 argspec = string.sub(argspec, 2)
+		 -- assume primitive type (single char)
+		 table.insert(argarray, char1)
+		 argspec = string.sub(argspec, 2)
       end
    end
    return argarray
@@ -93,15 +93,15 @@ local function call_java_method(object, possible_methods, args)
    for i,m in ipairs(possible_methods) do
       -- short circuit match for no args
       if #args == 0 and m.args == "" then
-	 if m.modifiers.static then
-	    object = object.class
-	 end
-	 return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), 0)
+		 if m.modifiers.static then
+			object = object.class
+		 end
+		 return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), 0)
       end
 
       -- only try to match methods with the same number of arguments
       if #parse_arg_spec(m.args) == argc then
-	 table.insert(possible2, m)
+		 table.insert(possible2, m)
       end
    end
 
@@ -110,46 +110,46 @@ local function call_java_method(object, possible_methods, args)
    for i, m in ipairs(possible2) do
       local atypes = parse_arg_spec(m.args)
       for i, t in ipairs(atypes) do
-	 local argi = args[i]
-	 if argi == nil then
-	    table.insert(jargs, "V")
-	    table.insert(jargs, nil)
-	 elseif (t == "Z") and type(argi) == "boolean" then
-	    table.insert(jargs, t)
-	    table.insert(jargs, argi)
-	 elseif (t == "I" or t == "J") and type(argi) == "number" then
-	    table.insert(jargs, t)
-	    table.insert(jargs, math.floor(argi))
-	 elseif (t == "F" or t == "D") and type(argi) == "number" then
-	    table.insert(jargs, t)
-	    table.insert(jargs, argi)
-	 elseif string.sub(t, 1, 1) == "[" and type(argi) == "userdata" and argi.class.name == t then
-	    table.insert(jargs, "[")
-	    table.insert(jargs, argi)
-	 elseif t == "Ljava/lang/String;" and type(argi) ~= "userdata" then
-	    table.insert(jargs, "STR")
-	    table.insert(jargs, string.format("%s", argi))
-	 elseif (string.sub(t, 1, 1) == "L" or string.sub(t, 1, 2) == "[L") and type(argi) == "userdata" and string.find(string.format("%s", argi), "jobject@") == 1 then
-	    local name = t
-	    -- from L; for non-arrays
-	    if string.sub(t, 1, 1) == "L" then
-	       name = string.sub(t, 2, #t - 1)
-	    end
-	    local tc = lj_find_class(name)
-	    assert(tc)
-	    if tc.isAssignableFrom(argi.class) then
-	       table.insert(jargs, "L")
-	       table.insert(jargs, argi)
-	    end
-	 end
+		 local argi = args[i]
+		 if argi == nil then
+			table.insert(jargs, "V")
+			table.insert(jargs, nil)
+		 elseif (t == "Z") and type(argi) == "boolean" then
+			table.insert(jargs, t)
+			table.insert(jargs, argi)
+		 elseif (t == "I" or t == "J") and type(argi) == "number" then
+			table.insert(jargs, t)
+			table.insert(jargs, math.floor(argi))
+		 elseif (t == "F" or t == "D") and type(argi) == "number" then
+			table.insert(jargs, t)
+			table.insert(jargs, argi)
+		 elseif string.sub(t, 1, 1) == "[" and type(argi) == "userdata" and argi.class.name == t then
+			table.insert(jargs, "[")
+			table.insert(jargs, argi)
+		 elseif t == "Ljava/lang/String;" and type(argi) ~= "userdata" then
+			table.insert(jargs, "STR")
+			table.insert(jargs, string.format("%s", argi))
+		 elseif (string.sub(t, 1, 1) == "L" or string.sub(t, 1, 2) == "[L") and type(argi) == "userdata" and string.find(string.format("%s", argi), "jobject@") == 1 then
+			local name = t
+			-- from L; for non-arrays
+			if string.sub(t, 1, 1) == "L" then
+			   name = string.sub(t, 2, #t - 1)
+			end
+			local tc = lj_find_class(name)
+			assert(tc)
+			if tc.isAssignableFrom(argi.class) then
+			   table.insert(jargs, "L")
+			   table.insert(jargs, argi)
+			end
+		 end
 
-	 -- call only if all args matched
-	 if #jargs == (argc * 2) then
-	    if m.modifiers.static then
-	       object = object.class
-	    end
-	    return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), argc, unpack(jargs))
-	 end
+		 -- call only if all args matched
+		 if #jargs == (argc * 2) then
+			if m.modifiers.static then
+			   object = object.class
+			end
+			return lj_call_method(object, m, m.modifiers.static, get_ret_type(m), argc, unpack(jargs))
+		 end
       end
       --print("more than one possible method, using: " .. method_id.name .. " from " .. lj_toString(method_id.class))
    end
@@ -174,10 +174,10 @@ local jmethod_id_mt = {}
 debug.getregistry()["jmethod_id_mt"] = jmethod_id_mt
 jmethod_id_mt.__tostring = function(method_id)
    return string.format("jmethod_id@%s %s.%s%s",
-			lj_pointer_to_string(method_id),
-			method_id.class.name,
-			method_id.name,
-			method_id.sig)
+						lj_pointer_to_string(method_id),
+						method_id.class.name,
+						method_id.name,
+						method_id.sig)
 end
 jmethod_id_mt.__eq = function(m1, m2)
    return m1.name == m2.name and
@@ -199,9 +199,9 @@ jmethod_id_mt.__index = function(method_id, k)
       local ret = string.match(sig, "%).*$")
       ret = string.sub(ret, 2)
       if k == "args" then
-	 return args
+		 return args
       elseif k == "ret" then
-	 return ret
+		 return ret
       end
    elseif k == "line_number_table" then
       return lj_get_line_number_table(method_id)
@@ -218,10 +218,10 @@ local jfield_id_mt = {}
 debug.getregistry()["jfield_id_mt"] = jfield_id_mt
 jfield_id_mt.__tostring = function(field_id)
    return string.format("jfield_id@%s %s.%s type=%s",
-			lj_pointer_to_string(field_id),
-			field_id.class.name,
-			field_id.name,
-		        field_id.sig)
+						lj_pointer_to_string(field_id),
+						field_id.class.name,
+						field_id.name,
+						field_id.sig)
 end
 jfield_id_mt.__eq = function(f1, f2)
    return f1.name == f2.name and
@@ -246,7 +246,7 @@ local jmonitor_mt = {}
 debug.getregistry()["jmonitor_mt"] = jmonitor_mt
 jmonitor_mt.__tostring = function(monitor)
    return string.format("jmonitor@%s",
-			lj_pointer_to_string(monitor))
+						lj_pointer_to_string(monitor))
 end
 jmonitor_mt.__index = jmonitor_mt
 function jmonitor_mt:destroy()
@@ -290,8 +290,8 @@ setmetatable(jobject_mt, jobject_mt)
 debug.getregistry()["jobject_mt"] = jobject_mt
 jobject_mt.__tostring = function(object)
    return string.format("jobject@%s: %s",
-			lj_pointer_to_string(object),
-			lj_toString(object))
+						lj_pointer_to_string(object),
+						lj_toString(object))
 end
 jobject_mt.__eq = function(o1, o2)
    local o1c, o2c = lj_toString(o1.class), lj_toString(o2.class)
@@ -324,47 +324,47 @@ jobject_mt.__index = function(object, key)
    -- special fields for arrays
    if string.find(class_name, "[", 1, true) == 1 then
       if key == "length" then
-	 return lj_get_array_length(object)
+		 return lj_get_array_length(object)
       elseif type(key) == "number" then
-	 return lj_get_array_element(object, class_name, key)
+		 return lj_get_array_element(object, class_name, key)
       end
    end
 
    -- special fields for "thread" objects
    if class_name == "java.lang.Thread" then
       if key == "frame_count" then
-	 return lj_get_frame_count(object)
+		 return lj_get_frame_count(object)
       elseif key == "frames" then
-	 local frames = {}
-	 for i = 1, object.frame_count do
-	    table.insert(frames, lj_get_stack_frame(i, object))
-	 end
-	 return frames
+		 local frames = {}
+		 for i = 1, object.frame_count do
+			table.insert(frames, lj_get_stack_frame(i, object))
+		 end
+		 return frames
       end
    end
 
    -- special fields for "class" objects
    if class_name == "java.lang.Class" then
       if key == "sourcefile" then
-	 return lj_get_source_filename(object)
+		 return lj_get_source_filename(object)
       elseif key == "name" then
-	 -- name is a transient and cached property in java.lang.Class, don't access it directly
-	 -- c.f. Class.java source
-	 return lj_call_method(object,
-			       lj_get_method_id("java/lang/Class",
-						"getName",
-						"", "Ljava/lang/String;"),
-			       false, "STR", 0)
+		 -- name is a transient and cached property in java.lang.Class, don't access it directly
+		 -- c.f. Class.java source
+		 return lj_call_method(object,
+							   lj_get_method_id("java/lang/Class",
+												"getName",
+												"", "Ljava/lang/String;"),
+							   false, "STR", 0)
       elseif key == "isAssignableFrom" then
-	 -- handled manually to prevent recursion in generic method calling
-	 local isAssignableFromMethod = function(c2)
-	    return lj_call_method(object,
-				  lj_get_method_id("java/lang/Class",
-						   "isAssignableFrom",
-						   "Ljava/lang/Class;", "Z"),
-				  false, "Z", 1, "Ljava/lang/Class;", c2)
-	 end
-	 return isAssignableFromMethod
+		 -- handled manually to prevent recursion in generic method calling
+		 local isAssignableFromMethod = function(c2)
+			return lj_call_method(object,
+								  lj_get_method_id("java/lang/Class",
+												   "isAssignableFrom",
+												   "Ljava/lang/Class;", "Z"),
+								  false, "Z", 1, "Ljava/lang/Class;", c2)
+		 end
+		 return isAssignableFromMethod
       end
       -- NOTE: following this, object == class
       class = object
@@ -374,7 +374,7 @@ jobject_mt.__index = function(object, key)
       local fields = {}
       -- index by name
       for idx, field in pairs(lj_get_class_fields(class)) do
-	 fields[field.name] = field
+		 fields[field.name] = field
       end
       return fields
    end
@@ -383,7 +383,7 @@ jobject_mt.__index = function(object, key)
       local methods = {}
       -- index by name, sig
       for idx, method in pairs(lj_get_class_methods(class)) do
-	 methods[method.name .. method.sig] = method
+		 methods[method.name .. method.sig] = method
       end
       return methods
    end
