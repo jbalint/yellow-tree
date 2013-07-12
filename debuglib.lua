@@ -11,6 +11,7 @@
 
 require("java_bridge")
 require("event_queue")
+local Frame = require("debuglib/frame")
 
 -- options
 options = {}
@@ -78,7 +79,8 @@ end
 threads = {}
 
 function current_thread()
-   local jthread = java.lang.Thread.currentThread()
+   -- will cause recursion with env class lookup
+   local jthread = lj_find_class("java/lang/Thread").currentThread()
    local name = jthread.getName().toString()
    -- return thread object if already created
    -- TODO track and remove with thread destroy event
@@ -172,7 +174,7 @@ function stack()
    local frame_count = lj_get_frame_count(current_thread().jthread)
 
    for i = 1, frame_count do
-      table.insert(stack, frame_get(i))
+      table.insert(stack, Frame.get_frame(current_thread(), i))
    end
    return stack
 end
@@ -181,7 +183,7 @@ end
 -- Print local variables in current stack frame
 -- ============================================================
 function locals()
-   local frame = frame_get(depth)
+   local frame = Frame.get_frame(current_thread(), depth)
    local var_table = frame.method_id.local_variable_table
    for k, v in pairs(var_table) do
       dbgio:print(string.format("%10s = %s", k,
@@ -205,7 +207,7 @@ function next_line(num)
    num = num or 1
 
    -- find location of next line
-   local f = lj_get_stack_frame(depth)
+   local f = Frame.get_frame(current_thread(), depth)
    local line_nums = f.method_id.line_number_table
    for idx, ln in ipairs(line_nums) do
       if f.location < ln.location then
@@ -252,17 +254,13 @@ end
 function frame(num)
    num = num or 1
 
-   local f = frame_get(num)
+   local f = Frame.get_frame(current_thread(), num)
    if not f then
       dbgio:print("Invalid frame")
    end
 
    depth = num
    return f
-end
-
-function frame_get(num)
-   return Frame:new(nil, num)
 end
 
 -- ============================================================
@@ -396,7 +394,7 @@ function cb_breakpoint(thread, method_id, location)
 
    depth = 1
    dbgio:print()
-   dbgio:print(frame_get(1))
+   dbgio:print(Frame.get_frame(current_thread(), 1))
    local need_to_handle_events = true
    -- run handler if present and resume thread if requested
    if bp.handler then
@@ -426,7 +424,7 @@ function cb_method_exit(thread, method_id, was_popped_by_exception, return_value
    debug_lock:lock()
    debug_thread = current_thread()
 
-   dbgio:print(frame_get(depth))
+   dbgio:print(Frame.get_frame(current_thread(), depth))
    debug_event:broadcast_without_lock()
    debug_thread:handle_events()
 
@@ -456,7 +454,7 @@ function cb_single_step(thread, method_id, location)
       lj_clear_jvmti_callback("single_step")
       next_line_location = nil
       next_line_method_id = nil
-      dbgio:print(frame_get(depth))
+      dbgio:print(Frame.get_frame(current_thread(), depth))
    	  debug_event:broadcast_without_lock()
 	  debug_thread:handle_events()
    end
@@ -475,49 +473,6 @@ end
 -- | |  | | __| | / __|
 -- | |__| | |_| | \__ \
 --  \____/ \__|_|_|___/
-
-Frame = {}
-function Frame:new(thread, depth)
-   thread = thread or lj_get_current_thread()
-   local frame = lj_get_stack_frame(depth, thread)
-   frame.thread = thread
-
-   setmetatable(frame, self)
-   return frame
-end
-function Frame:__index(k)
-   local local_var = self.method_id.local_variable_table[k]
-   if local_var then
-      return lj_get_local_variable(self.depth, local_var.slot, local_var.sig)
-   end
-end
-function Frame:locals()
-   local locals = {}
-   for k, v in pairs(self.frame.method_id.local_variable_table) do
-      locals[k] = self[k]
-   end
-   return locals
-end
-function Frame:__tostring()
-   -- look up line number
-   local line_num = -1
-   for idx, ln in ipairs(self.method_id.line_number_table or {}) do
-      if self.location >= ln.location then
-         line_num = ln.line_num
-      else
-         break
-      end
-   end
-
-   return string.format("%6s %s.%s%s - %s (%s:%s)",
-                        "[" .. self.depth .. "]",
-                        self.method_id.class.name,
-                        self.method_id.name,
-                        self.method_id.sig,
-                        self.location,
-                        self.method_id.class.sourcefile or "<unknown>",
-                        line_num)
-end
 
 -- ============================================================
 -- parse debugger options
@@ -575,7 +530,7 @@ end
 -- Find a local variable
 -- Return "value, k" if found, "nil, nil" otherwise
 function get_local_variable(k)
-   local frame = lj_get_stack_frame(depth)
+   local frame = Frame.get_frame(current_thread(), depth)
    if not frame then
       return nil, nil
    end

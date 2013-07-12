@@ -10,6 +10,8 @@
 -- Bridge Java objects to be accessible in Lua
 -- required by lua_java.c
 
+local Frame = require("debuglib/frame")
+
 -- ============================================================
 -- search up the class hierarchy for methods called `name'
 local function find_methods(class, name)
@@ -337,7 +339,7 @@ jobject_mt.__index = function(object, key)
       elseif key == "frames" then
 		 local frames = {}
 		 for i = 1, object.frame_count do
-			table.insert(frames, lj_get_stack_frame(i, object))
+			table.insert(frames, Frame.get_frame(object, i))
 		 end
 		 return frames
       end
