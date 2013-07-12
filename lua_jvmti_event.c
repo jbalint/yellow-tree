@@ -9,12 +9,10 @@
 #include "myjni.h"
 #include "jni_util.h"
 #include "lua_java.h"
+#include "lj_internal.h"
 
 /* from lua_java.c */
 extern lua_State *lj_L;
-
-extern jvmtiEnv *lj_jvmti;
-extern jvmtiError lj_err;
 
 void lj_check_jvmti_error(lua_State *L);
 
@@ -246,7 +244,7 @@ int lj_set_jvmti_callback(lua_State *L)
   *jvmti_callback_ptr = lj_callback_ptr;
   *ref_ptr = ref;
 
-  lj_err = (*lj_jvmti)->SetEventCallbacks(lj_jvmti, evCbs, sizeof(jvmtiEventCallbacks));
+  lj_err = (*current_jvmti())->SetEventCallbacks(current_jvmti(), evCbs, sizeof(jvmtiEventCallbacks));
   lj_check_jvmti_error(L);
 
   return 0;
@@ -275,7 +273,7 @@ int lj_clear_jvmti_callback(lua_State *L)
   *jvmti_callback_ptr = NULL;
   *ref_ptr = LUA_NOREF;
 
-  lj_err = (*lj_jvmti)->SetEventCallbacks(lj_jvmti, evCbs, sizeof(jvmtiEventCallbacks));
+  lj_err = (*current_jvmti())->SetEventCallbacks(current_jvmti(), evCbs, sizeof(jvmtiEventCallbacks));
   lj_check_jvmti_error(L);
 
   return 0;

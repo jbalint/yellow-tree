@@ -8,6 +8,7 @@
 #include "jni_util.h"
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "lj_internal.h"
 
  /*  _    _ _   _ _      */
  /* | |  | | | (_) |     */
@@ -16,8 +17,8 @@
  /* | |__| | |_| | \__ \ */
  /*  \____/ \__|_|_|___/ */
 
-jvmtiEnv *lj_jvmti;
-jvmtiError lj_err;
+static jvmtiEnv *lj_jvmti; /* accessed through current_jvmti() */
+jvmtiError lj_err;  /* accessed directly externally */
 
 JavaVM *lj_jvm;
 
@@ -41,6 +42,11 @@ static JNIEnv *current_jni()
   jint ret = (*lj_jvm)->AttachCurrentThread(lj_jvm, (void**)&jni, NULL);
   assert(ret == JNI_OK);
   return jni;
+}
+
+jvmtiEnv *current_jvmti()
+{
+  return lj_jvmti;
 }
 
 void lj_check_jvmti_error(lua_State *L)
@@ -1226,102 +1232,6 @@ static int lj_get_all_threads(lua_State *L)
   return 1;
 }
 
-static int lj_create_raw_monitor(lua_State *L)
-{
-  jrawMonitorID monitor;
-  const char *name;
-
-  name = luaL_checkstring(L, 1);
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->CreateRawMonitor(lj_jvmti, name, &monitor);
-  lj_check_jvmti_error(L);
-
-  new_jmonitor(L, monitor, name);
-
-  return 1;
-}
-
-static int lj_destroy_raw_monitor(lua_State *L)
-{
-  jrawMonitorID monitor;
-
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->DestroyRawMonitor(lj_jvmti, monitor);
-  lj_check_jvmti_error(L);
-
-  return 0;
-}
-
-static int lj_raw_monitor_enter(lua_State *L)
-{
-  jrawMonitorID monitor;
-
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->RawMonitorEnter(lj_jvmti, monitor);
-  lj_check_jvmti_error(L);
-
-  return 0;
-}
-
-static int lj_raw_monitor_exit(lua_State *L)
-{
-  jrawMonitorID monitor;
-
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->RawMonitorExit(lj_jvmti, monitor);
-  lj_check_jvmti_error(L);
-
-  return 0;
-}
-
-static int lj_raw_monitor_wait(lua_State *L)
-{
-  jrawMonitorID monitor;
-  jlong wait;
-
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
-  wait = luaL_checkint(L, 2);
-  lua_pop(L, 2);
-
-  lj_err = (*lj_jvmti)->RawMonitorWait(lj_jvmti, monitor, wait);
-  lj_check_jvmti_error(L);
-
-  return 0;
-}
-
-static int lj_raw_monitor_notify(lua_State *L)
-{
-  jrawMonitorID monitor;
-
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->RawMonitorNotify(lj_jvmti, monitor);
-  lj_check_jvmti_error(L);
-
-  return 0;
-}
-
-static int lj_raw_monitor_notify_all(lua_State *L)
-{
-  jrawMonitorID monitor;
-
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
-  lua_pop(L, 1);
-
-  lj_err = (*lj_jvmti)->RawMonitorNotifyAll(lj_jvmti, monitor);
-  lj_check_jvmti_error(L);
-
-  return 0;
-}
-
 static int lj_get_array_length(lua_State *L)
 {
   JNIEnv *jni = current_jni();
@@ -1445,6 +1355,9 @@ int lj_set_jvmti_callback(lua_State *L);
 int lj_clear_jvmti_callback(lua_State *L);
 void lj_init_jvmti_event();
 
+/* registration for lj_raw_monitor.c */
+void lj_raw_monitor_register(lua_State *L);
+
 void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 {
   lj_L = L;
@@ -1479,14 +1392,7 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_current_thread",         lj_get_current_thread);
   lua_register(L, "lj_get_all_threads",            lj_get_all_threads);
 
-  /* raw monitor */
-  lua_register(L, "lj_create_raw_monitor",         lj_create_raw_monitor);
-  lua_register(L, "lj_destroy_raw_monitor",        lj_destroy_raw_monitor);
-  lua_register(L, "lj_raw_monitor_enter",          lj_raw_monitor_enter);
-  lua_register(L, "lj_raw_monitor_exit",           lj_raw_monitor_exit);
-  lua_register(L, "lj_raw_monitor_wait",           lj_raw_monitor_wait);
-  lua_register(L, "lj_raw_monitor_notify",         lj_raw_monitor_notify);
-  lua_register(L, "lj_raw_monitor_notify_all",     lj_raw_monitor_notify_all);
+  lj_raw_monitor_register(L);
 
   lua_register(L, "lj_get_array_length",           lj_get_array_length);
   lua_register(L, "lj_get_array_element",          lj_get_array_element);
