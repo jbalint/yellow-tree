@@ -8,6 +8,7 @@
 #include <lauxlib.h>
 
 #include <stdarg.h>
+#include <assert.h>
 
 void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti);
 void lj_print_message(const char *format, ...);

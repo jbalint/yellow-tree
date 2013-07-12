@@ -169,7 +169,7 @@ end
 function stack()
    local stack = {}
    setmetatable(stack, stack_mt)
-   local frame_count = lj_get_frame_count()
+   local frame_count = lj_get_frame_count(current_thread().jthread)
 
    for i = 1, frame_count do
       table.insert(stack, frame_get(i))
@@ -442,9 +442,9 @@ function cb_single_step(thread, method_id, location)
       -- single stepped into a different method, disable single steps until
       -- it exits
       lj_clear_jvmti_callback("single_step")
-      local previous_frame_count = lj_get_frame_count()
+      local previous_frame_count = lj_get_frame_count(current_thread().jthread)
       local check_nested_method_return = function(thread, method_id, was_popped_by_exception, return_value)
-         if lj_get_frame_count() == previous_frame_count then
+         if lj_get_frame_count(thread.jthread) == previous_frame_count then
             lj_set_jvmti_callback("method_exit", cb_method_exit)
             lj_set_jvmti_callback("single_step", cb_single_step)
          end

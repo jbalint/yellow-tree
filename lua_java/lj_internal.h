@@ -1,3 +1,6 @@
+#ifndef LJ_INTERNAL_H_
+#define LJ_INTERNAL_H_
+
 #include "lua_java.h"
 
 /* we need to keep class paired with field_id due to JVMTI API */
@@ -18,3 +21,5 @@ extern jvmtiError lj_err;
   event_change(current_jvmti(), JVMTI_ENABLE, JVMTI_EVENT_##EVTYPE, (EVTHR))
 #define EV_DISABLET(EVTYPE, EVTHR) \
   event_change(current_jvmti(), JVMTI_DISABLE, JVMTI_EVENT_##EVTYPE, (EVTHR))
+
+#endif /* LJ_INTERNAL_H_ */

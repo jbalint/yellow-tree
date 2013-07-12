@@ -155,69 +155,6 @@ jobject get_current_java_thread()
  /* | |___| |_| | (_| | | |  | |_| | | | | (__| |_| | (_) | | | \__ \ */
  /* |______\__,_|\__,_| |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/ */
 
-static int lj_get_frame_count(lua_State *L)
-{
-  jint count;
-  jobject thread;
-
-  /* check if we're passed a thread */
-  if (lua_gettop(L) == 1)
-  {
-    thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
-    lua_pop(L, 1);
-  }
-  else
-  {
-    thread = get_current_java_thread();
-  }
-
-  lj_err = (*lj_jvmti)->GetFrameCount(lj_jvmti, thread, &count);
-  lj_check_jvmti_error(L);
-  lua_pushinteger(L, count);
-  return 1;
-}
-
-static int lj_get_stack_frame(lua_State *L)
-{
-  int frame_num;
-  jvmtiFrameInfo fi;
-  jint count;
-  jobject thread;
-  int args = 1;
-
-  frame_num = luaL_checkint(L, 1);
-  /* check if we're passed a thread */
-  if (lua_gettop(L) == 2)
-  {
-    args++;
-    thread = *(jobject *)luaL_checkudata(L, 2, "jobject_mt");
-  }
-  else
-  {
-    thread = get_current_java_thread();
-  }
-  lua_pop(L, args);
-
-  /* get stack frame info */
-  lj_err = (*lj_jvmti)->GetStackTrace(lj_jvmti, thread, frame_num-1, 1, &fi, &count);
-  lj_check_jvmti_error(L);
-  if (count == 0) {
-    return 0;
-  }
-  assert(count == 1);
-
-  lua_newtable(L);
-
-  lua_pushinteger(L, fi.location);
-  lua_setfield(L, -2, "location");
-  new_jmethod_id(L, fi.method);
-  lua_setfield(L, -2, "method_id");
-  lua_pushinteger(L, frame_num);
-  lua_setfield(L, -2, "depth");
-
-  return 1;
-}
-
 static int lj_set_breakpoint(lua_State *L)
 {
   jmethodID method_id;
@@ -862,30 +799,6 @@ static int lj_convert_to_global_ref(lua_State *L)
   return 1;
 }
 
-/* lj_force_early_return_void (thread) */
-static int lj_force_early_return_void(lua_State *L)
-{
-  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
-  lua_pop(L, 1);
-  lj_err = (*lj_jvmti)->ForceEarlyReturnVoid(lj_jvmti, thread);
-  lj_check_jvmti_error(L);
-  return 0;
-}
-
-static int lj_force_early_return_int(lua_State *L)
-{
-  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
-  int retval;
-  if (lua_isboolean(L, 2))
-	retval = lua_toboolean(L, 2);
-  else
-	retval = luaL_checkint(L, 2);
-  lj_err = (*lj_jvmti)->ForceEarlyReturnInt(lj_jvmti, thread, retval);
-  lj_check_jvmti_error(L);
-  lua_pop(L, 2);
-  return 0;
-}
-
  /*           _____ _____  */
  /*     /\   |  __ \_   _| */
  /*    /  \  | |__) || |   */
@@ -898,11 +811,13 @@ int lj_set_jvmti_callback(lua_State *L);
 int lj_clear_jvmti_callback(lua_State *L);
 void lj_init_jvmti_event();
 
-/* registration for subordinate .c fields */
+/* registration for subordinate .c files */
 void lj_class_register(lua_State *L);
 void lj_field_register(lua_State *L);
+void lj_force_early_return_register(lua_State *L);
 void lj_method_register(lua_State *L);
 void lj_raw_monitor_register(lua_State *L);
+void lj_stack_frame_register(lua_State *L);
 
 void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 {
@@ -911,11 +826,10 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   /* add C functions */
   lj_class_register(L);
   lj_field_register(L);
+  lj_force_early_return_register(L);
   lj_method_register(L);
   lj_raw_monitor_register(L);
-
-  lua_register(L, "lj_get_frame_count",            lj_get_frame_count);
-  lua_register(L, "lj_get_stack_frame",            lj_get_stack_frame);
+  lj_stack_frame_register(L);
 
   lua_register(L, "lj_set_breakpoint",             lj_set_breakpoint);
   lua_register(L, "lj_clear_breakpoint",           lj_clear_breakpoint);
@@ -934,10 +848,6 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lua_register(L, "lj_get_array_element",          lj_get_array_element);
 
   lua_register(L, "lj_convert_to_global_ref",      lj_convert_to_global_ref);
-
-  lua_register(L, "lj_force_early_return_void",    lj_force_early_return_void);
-  lua_register(L, "lj_force_early_return_int",     lj_force_early_return_int);
-
 
   lua_register(L, "lj_set_jvmti_callback",         lj_set_jvmti_callback);
   lua_register(L, "lj_clear_jvmti_callback",       lj_clear_jvmti_callback);
