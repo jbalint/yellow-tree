@@ -101,9 +101,9 @@ static int lj_get_source_filename(lua_State *L)
   {
     lj_check_jvmti_error(L);
     lua_pushstring(L, sourcefile);
-  }
 
-  free_jvmti_refs(current_jvmti(), sourcefile, (void *)-1);
+	free_jvmti_refs(current_jvmti(), sourcefile, (void *)-1);
+  }
 
   return 1;
 }
