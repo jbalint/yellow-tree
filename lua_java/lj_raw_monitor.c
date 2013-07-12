@@ -2,6 +2,7 @@
 #include "jni_util.h"
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "lj_internal.h"
 
 /* Lua wrappers for raw monitor operations */
 

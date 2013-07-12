@@ -74,6 +74,8 @@ function test_basic_method_access()
    assert_not_nil(currentThread)
    assert_true(currentThread_method.modifiers.static)
    assert_equal(java.lang.Thread, currentThread.class)
+   assert_equal("currentThread", currentThread_method.name)
+   assert_equal("()Ljava/lang/Thread;", currentThread_method.sig)
 
    -- instance method
    local getName_method = thread_class.methods["getName()Ljava/lang/String;"]

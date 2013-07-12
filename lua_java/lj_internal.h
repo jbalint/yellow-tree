@@ -2,6 +2,9 @@
 
 jobject get_current_java_thread();
 jvmtiEnv *current_jvmti();
+JNIEnv *current_jni();
+
+void lj_check_jvmti_error(lua_State *L);
 
 extern jvmtiError lj_err;
 
