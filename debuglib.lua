@@ -185,6 +185,10 @@ end
 function locals()
    local frame = Frame.get_frame(current_thread(), depth)
    local var_table = frame.method_id.local_variable_table
+   if var_table == nil then
+      dbgio:print("No local variable table")
+      return
+   end
    for k, v in pairs(var_table) do
       dbgio:print(string.format("%10s = %s", k,
                                 lj_get_local_variable(depth, v.slot, v.sig)))
