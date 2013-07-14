@@ -54,8 +54,8 @@ static int lj_get_field_id(lua_State *L)
 static int lj_get_field_name(lua_State *L)
 {
   lj_field_id *field_id;
-  char *field_name;
-  char *sig;
+  char *field_name = NULL;
+  char *sig = NULL;
 
   field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
   lua_pop(L, 1);
@@ -69,6 +69,8 @@ static int lj_get_field_name(lua_State *L)
   lua_setfield(L, -2, "name");
   lua_pushstring(L, sig);
   lua_setfield(L, -2, "sig");
+
+  free_jvmti_refs(current_jvmti(), field_name, sig, (void *)-1);
 
   return 1;
 }

@@ -21,10 +21,13 @@ jvmtiError free_jvmti_refs(jvmtiEnv *jvmti, ...)
   va_list s;
   unsigned char *p;
   va_start(s, jvmti);
-  while((p = va_arg(s, unsigned char *)) != (unsigned char *)-1)
+  while((p = va_arg(s, unsigned char *)) != (void *)-1)
   {
     if(!p)
+	{
+	  fprintf(stderr, "WARNING: null pointer passed to free_jvmti_refs()\n");
       continue;
+	}
     jerr = (*jvmti)->Deallocate(jvmti, p);
     /* if(check_jvmti_error(Gagent.jvmti, Gagent.jerr) != JVMTI_ERROR_NONE) */
     /*   jerr = Gagent.jerr; */

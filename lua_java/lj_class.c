@@ -35,7 +35,7 @@ static int lj_find_class(lua_State *L)
 static int lj_get_class_fields(lua_State *L)
 {
   jint field_count;
-  jfieldID *fields;
+  jfieldID *fields = NULL;
   jclass class;
   int i;
 
@@ -61,7 +61,7 @@ static int lj_get_class_fields(lua_State *L)
 static int lj_get_class_methods(lua_State *L)
 {
   jint method_count;
-  jmethodID *methods;
+  jmethodID *methods = NULL;
   jclass class;
   int i;
 
@@ -87,7 +87,7 @@ static int lj_get_class_methods(lua_State *L)
 static int lj_get_source_filename(lua_State *L)
 {
   jobject class;
-  char *sourcefile;
+  char *sourcefile = NULL;
 
   class = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
   lua_pop(L, 1);

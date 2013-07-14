@@ -64,7 +64,7 @@ static int lj_get_method_id(lua_State *L)
 static int lj_get_local_variable_table(lua_State *L)
 {
   jmethodID method_id;
-  jvmtiLocalVariableEntry *vars;
+  jvmtiLocalVariableEntry *vars = NULL;
   jint count;
   int i;
 
@@ -112,7 +112,7 @@ static int lj_get_line_number_table(lua_State *L)
 {
   jmethodID method_id;
   jint line_count;
-  jvmtiLineNumberEntry *lines;
+  jvmtiLineNumberEntry *lines = NULL;
   int i;
 
   method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
@@ -134,6 +134,8 @@ static int lj_get_line_number_table(lua_State *L)
       lua_rawseti(L, -2, i+1);
     }
     lj_check_jvmti_error(L);
+
+	free_jvmti_refs(current_jvmti(), lines, (void *)-1);
   }
 
   return 1;
@@ -142,8 +144,8 @@ static int lj_get_line_number_table(lua_State *L)
 static int lj_get_method_name(lua_State *L)
 {
   jmethodID method_id;
-  char *method_name;
-  char *sig;
+  char *method_name = NULL;
+  char *sig = NULL;
 
   method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
   lua_pop(L, 1);
@@ -157,7 +159,9 @@ static int lj_get_method_name(lua_State *L)
   lua_setfield(L, -2, "name");
   lua_pushstring(L, sig);
   lua_setfield(L, -2, "sig");
-  
+
+  free_jvmti_refs(current_jvmti(), method_name, sig, (void *)-1);
+
   return 1;
 }
 
