@@ -660,6 +660,16 @@ function x()
       dbgio:print(string.format("a=%s", a))
       return false
    end
+   test_bp.handler = function(bp, thread)
+      local previous_frame = stack()[2]
+      if previous_frame.method_id.name == "main" then
+         print("Called by main, breaking into command loop")
+         return true
+      else
+         print("Not called by main, continuing execution")
+         return false
+      end
+   end
    bl()
    dbgio:print(dump(lj_get_class_methods(lj_find_class("java/lang/String"))))
    g()
