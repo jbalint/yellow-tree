@@ -1,10 +1,11 @@
 #include "lua_java.h"
+#include "java_bridge.h"
 #include "lj_internal.h"
 
 static int lj_get_frame_count(lua_State *L)
 {
   jint count;
-  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetFrameCount(current_jvmti(), thread, &count);
@@ -17,7 +18,7 @@ static int lj_get_stack_frame(lua_State *L)
 {
   jvmtiFrameInfo fi;
   jint count;
-  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
   int frame_num = luaL_checkint(L, 2);
   lua_pop(L, 2);
 

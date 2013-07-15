@@ -9,7 +9,7 @@ static int lj_force_early_return_object(lua_State *L)
 
 static int lj_force_early_return_int(lua_State *L)
 {
-  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
   int retval;
   if (lua_isboolean(L, 2))
 	retval = lua_toboolean(L, 2);
@@ -41,7 +41,7 @@ static int lj_force_early_return_double(lua_State *L)
 
 static int lj_force_early_return_void(lua_State *L)
 {
-  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
   lua_pop(L, 1);
   lj_err = (*current_jvmti())->ForceEarlyReturnVoid(current_jvmti(), thread);
   lj_check_jvmti_error(L);

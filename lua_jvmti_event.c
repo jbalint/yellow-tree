@@ -9,6 +9,8 @@
 #include "myjni.h"
 #include "jni_util.h"
 #include "lua_java.h"
+#include "lua_interface.h"
+#include "java_bridge.h"
 #include "lj_internal.h"
 
 /* from lua_java.c */
@@ -77,11 +79,12 @@ static void JNICALL cb_breakpoint(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
   disable_events_before_callback_handling(lj_L);
 
+  lua_pushcfunction(L, lua_print_traceback);
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
   lua_pushinteger(L, location);
-  lua_call(L, 3, 1);
+  lua_pcall(L, 3, 0, -5);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 
   enable_events_after_callback_handling(lj_L);

@@ -23,7 +23,7 @@ EventQueue.__index = EventQueue
 function EventQueue.new(name)
    local self = setmetatable({}, EventQueue)
    self.events = {}
-   self.lock = lj_create_raw_monitor(name .. "_event_queue")
+   self.lock = jmonitor.create(lj_create_raw_monitor(name .. "_event_queue"))
    return self
 end
 

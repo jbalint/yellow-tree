@@ -8,6 +8,7 @@
 
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "java_bridge.h"
 
 static lua_State *lua_state;
 
@@ -33,13 +34,13 @@ int traceback (lua_State *L) {
   return 1;
 }
 
-int print_traceback (lua_State *L, const char *msg)
+int lua_print_traceback (lua_State *L)
 {
   const char *stack;
-  lua_pushstring(L, msg);
   traceback(L);
   stack = lua_tostring(L, -1);
-  fprintf(stderr, "%s\n", stack);
+  fprintf(stderr, "<lua_print_traceback> %s\n", stack);
+  lua_pop(L, 2);
   return 0;
 }
 
@@ -73,7 +74,13 @@ void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resum
     fprintf(stderr, "Failed to load debuglib.lua: %s\n", lua_tostring(lua_state, -1));
     abort();
   }
+  lua_pushcfunction(lua_state, traceback);
+  lua_getglobal(lua_state, "jmonitor");
+  lua_getfield(lua_state, -1, "create");
+  lua_remove(lua_state, -2);
   new_jmonitor(lua_state, thread_resume_monitor, "yellow_tree_thread_resume_monitor");
+  lua_pcall(lua_state, 1, 1, -3);
+  lua_remove(lua_state, -2);
   lua_setglobal(lua_state, "thread_resume_monitor");
 }
 

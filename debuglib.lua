@@ -9,7 +9,7 @@
 -- | |___| (_) | | | | | | | | | | | (_| | | | | (_| \__ \
 --  \_____\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|___/
 
-require("java_bridge")
+require("java_bridge/java_bridge")
 require("event_queue")
 local Frame = require("debuglib/frame")
 
@@ -36,60 +36,29 @@ dbgio = require("console_io")
 -- TODO should be moved up into C code to protect lua_State
 -- TODO doesn't prevent re-entry on same thread, will require at least g() to be called twice
 -- TODO make sure this doesn't deadlock on re-entry
-debug_lock = lj_create_raw_monitor("debug_lock")
+debug_lock = jmonitor.create(lj_create_raw_monitor("debug_lock"))
 -- current thread being debugged, should be set when debug_lock is acquired
 -- and cleared when debug_lock is released
 debug_thread = nil
 
 -- used to wait for a debug event
-debug_event = lj_create_raw_monitor("debug_event")
+debug_event = jmonitor.create(lj_create_raw_monitor("debug_event"))
 
 ThreadName = {}
 ThreadName.CMD_THREAD = "this is init'd in start_cmd"
 
-Thread = {}
-Thread.__index = Thread
-
-function Thread.new(jthread)
-   local self = setmetatable({}, Thread)
-   self.jthread = jthread
-   self.name = jthread.getName().toString()
-   self.event_queue = EventQueue.new(self.name)
-   return self
-end
-
-function Thread:handle_events()
-   while true do
-	  local event = self.event_queue:pop()
-	  --dbgio:debug("Thread ", self.name, " received event ", dump(event))
-	  if event.type == EventType.RESUME then
-		 return
-	  elseif event.type == EventType.COMMAND then
-		 -- TODO copied from start_cmd()
-		 local success, m2 = pcall(event.data.chunk)
-		 if not success then
-			dbgio:print("Error: " .. m2)
-		 elseif m2 then
-			dbgio:print(m2)
-		 end
-	  end
-   end
-end
-
 threads = {}
 
 function current_thread()
-   -- will cause recursion with env class lookup
-   local jthread = lj_find_class("java/lang/Thread").currentThread()
-   local name = jthread.getName().toString()
+   -- "java.lang.Thread.currentThread()" here will cause recursion with env class lookup
+   local thread = jclass.find("java/lang/Thread").currentThread()
    -- return thread object if already created
    -- TODO track and remove with thread destroy event
-   if threads[name] then
-	  return threads[name]
+   if threads[thread.name] then
+	  return threads[thread.name]
    end
-   local thread = Thread.new(jthread:global_ref())
-   threads[name] = thread
-   dbgio:print("New Java thread: ", jthread)
+   threads[thread.name] = thread
+   dbgio:print("New Java thread: ", thread)
    return thread
 end
 
@@ -171,7 +140,7 @@ end
 function stack()
    local stack = {}
    setmetatable(stack, stack_mt)
-   local frame_count = lj_get_frame_count(current_thread().jthread)
+   local frame_count = current_thread().frame_count
 
    for i = 1, frame_count do
       table.insert(stack, Frame.get_frame(current_thread(), i))
@@ -190,8 +159,7 @@ function locals()
       return
    end
    for k, v in pairs(var_table) do
-      dbgio:print(string.format("%10s = %s", k,
-                                lj_get_local_variable(depth, v.slot, v.sig)))
+      dbgio:print(string.format("%10s = %s", k, frame[k]))
    end
 end
 
@@ -276,8 +244,7 @@ function bp(method, line_num)
    b.line_num = line_num or 0
 
    if type(method) == "string" then
-      local method_spec = method_decl_parse(method)
-      b.method_id = lj_get_method_id(method_spec.class, method_spec.method, method_spec.args, method_spec.ret)
+      b.method_id = jmethod_id.find(method)
       if not b.method_id then
          error("Method not found")
       end
@@ -313,7 +280,7 @@ function bp(method, line_num)
       return disp
    end
 
-   lj_set_breakpoint(b.method_id, b.location)
+   lj_set_breakpoint(b.method_id.jmethod_id_raw, b.location)
    table.insert(breakpoints, b)
    dbgio:print("ok")
 
@@ -383,9 +350,12 @@ end
 -- ============================================================
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
-function cb_breakpoint(thread, method_id, location)
+function cb_breakpoint(thread, method_id_raw, location)
    debug_lock:lock()
    debug_thread = current_thread()
+
+   -- TODO should be done in C code?
+   local method_id = jmethod_id.create(method_id_raw, nil)
 
    local bp
    for idx, v in pairs(breakpoints) do
@@ -444,7 +414,7 @@ function cb_single_step(thread, method_id, location)
       -- single stepped into a different method, disable single steps until
       -- it exits
       lj_clear_jvmti_callback("single_step")
-      local previous_frame_count = lj_get_frame_count(current_thread().jthread)
+      local previous_frame_count = current_thread().frame_count
       local check_nested_method_return = function(thread, method_id, was_popped_by_exception, return_value)
          if lj_get_frame_count(thread.jthread) == previous_frame_count then
             lj_set_jvmti_callback("method_exit", cb_method_exit)
@@ -515,7 +485,7 @@ function fq_class_search(pkg, previous_t)
 
    local mt = getmetatable(t) or (setmetatable(t, {}) and getmetatable(t))
    mt.__index = function(t, k)
-      local class = lj_find_class(string.gsub(t.pkg .. "." .. k, "[.]", "/"))
+      local class = jclass.find(string.gsub(t.pkg .. "." .. k, "[.]", "/"))
       if class then
          -- we found a class
          return class
@@ -535,17 +505,12 @@ end
 -- Return "value, k" if found, "nil, nil" otherwise
 function get_local_variable(k)
    local frame = Frame.get_frame(current_thread(), depth)
-   if not frame then
+   if not frame or
+      not frame.method_id.local_variable_table or
+      not frame.method_id.local_variable_table[k] then
       return nil, nil
    end
-   local locals = frame.method_id.local_variable_table
-   if not locals then
-      return nil, nil
-   end
-   local l = locals[k]
-   if l then
-      return lj_get_local_variable(depth, l.slot, l.sig), k
-   end
+   return frame[k], k
 end
 
 -- ============================================================
@@ -563,7 +528,7 @@ function init_locals_environment()
       -- TODO: try members of `this'
 
       -- find a fully-qualified class
-      local class = lj_find_class(k)
+      local class = jclass.find(k)
       if class then return class end
 
       -- TODO: try class name without package
@@ -582,34 +547,10 @@ function init_locals_environment()
 end
 
 -- ============================================================
--- Parse a method declaration of the form
--- java/io/PrintStream.println(Ljava/lang/String;)V
-function method_decl_parse(method_decl)
-   local chars = 0
-   local md = {}
-
-   md.class = string.match(method_decl, "^.*%.") -- up until .
-   chars = string.len(md.class)
-   md.class = string.sub(md.class, 0, string.len(md.class) - 1) -- remove .
-
-   md.method = string.match(method_decl, "^.*%(", chars + 1) -- up until (
-   chars = chars + string.len(md.method)
-   md.method = string.sub(md.method, 0, string.len(md.method) - 1) -- remove (
-
-   md.args = string.match(method_decl, "^.*%)", chars + 1) -- up until )
-   chars = chars + string.len(md.args)
-   md.args = string.sub(md.args, 0, string.len(md.args) - 1) -- remove )
-
-   md.ret = string.sub(method_decl, chars + 1) -- rest
-
-   return md
-end
-
--- ============================================================
 -- Find the location (offset) in a method for a given line number
-function method_location_for_line_num(method_id, line_num)
+function method_location_for_line_num(jmethod_id, line_num)
    if not line_num then return -1 end
-   local lnt = method_id.line_number_table
+   local lnt = jmethod_id.line_number_table
    if not lnt then return -1 end
    for idx, ln in ipairs(lnt) do
       if line_num == ln.line_num then
@@ -627,19 +568,44 @@ end
 -- http://snippets.luacode.org/?p=snippets/Simple_Table_Dump_7
 -- fixed to print recursive tables
 function dump(o)
+   dump_params = {}
+   dump_depth = 0
+   return dump_internal(o)
+end
+
+function dump_internal(o)
+   if type(o) == "table" and dump_depth > 1 then
+      return "<table>"
+   end
+   dump_depth = dump_depth + 1
+   if type(o) == "table" and dump_params[o] ~= nil then
+      dump_depth = dump_depth - 1
+      return "<recursion>"
+   end
+   dump_params[o] = 1
+   local prefix = ""
+   for i = 1, dump_depth do
+      prefix = prefix .. "  "
+   end
    if type(o) == 'table' then
       local s = '{ ' .. "\n"
       for k,v in pairs(o) do
          if type(k) == 'table' then
-            k = dump(k)
+            k = dump_internal(k)
          elseif type(k) ~= 'number' then
             k = '"'..k..'"'
          end
-         s = s .. '['..k..'] = ' .. dump(v) .. ','
+         if type(v) == "DISABLEtable" then
+            s = s .. '['..k..'] = ' .. "<table>" .. ','
+         else
+            s = s .. prefix .. '['..k..'] = ' .. dump_internal(v) .. ','
+         end
          s = s .. "\n"
       end
+      dump_depth = dump_depth - 1
       return s .. '} '
    else
+      dump_depth = dump_depth - 1
       return tostring(o)
    end
 end
@@ -650,9 +616,9 @@ print("debuglib.lua - loaded with " .. _VERSION)
 
 -- internal function fors testing/dev
 function x()
-   xtoString = lj_get_method_id("java/lang/Object", "toString", "", "Ljava/lang/String;")
-   xtoUpperCase = lj_get_method_id("java/lang/String", "toUpperCase", "", "Ljava/lang/String;")
-   xconcat = lj_get_method_id("java/lang/String", "concat", "Ljava/lang/String;", "Ljava/lang/String;")
+   xtoString = lj_get_method_id(lj_find_class("java/lang/Object"), "toString", "", "Ljava/lang/String;")
+   xtoUpperCase = lj_get_method_id(lj_find_class("java/lang/String"), "toUpperCase", "", "Ljava/lang/String;")
+   xconcat = lj_get_method_id(lj_find_class("java/lang/String"), "concat", "Ljava/lang/String;", "Ljava/lang/String;")
    test_bp = bp("Test.b(I)V")
    test_bp.handlerX = function(bp)
       dbgio:print("test_bp.handler")

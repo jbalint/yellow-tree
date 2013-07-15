@@ -1,25 +1,31 @@
 local Frame = {}
 
+-- ============================================================
 function Frame.get_frame(thread, depth)
-   local frame = lj_get_stack_frame(thread.jthread, depth)
+   assert(thread)
+   -- returned object has members, "location", "method_id" (raw), and "depth"
+   local frame = thread:get_raw_frame(depth)
    if not frame then
 	  return nil
    end
    frame.thread = thread
+   frame.method_id = jmethod_id.create(frame.method_id, nil)
 
    setmetatable(frame, Frame)
    return frame
 end
 
+-- ============================================================
 function Frame:__index(k)
    local local_var = self.method_id.local_variable_table[k]
    if local_var then
-      return lj_get_local_variable(self.depth, local_var.slot, local_var.sig)
-   else
-	  return nil
+      local ret_val = lj_get_local_variable(self.depth, local_var.slot, local_var.sig)
+	  return create_return_value(ret_val, local_var.sig)
    end
+   return rawget(Frame, k)
 end
 
+-- ============================================================
 function Frame:locals()
    local locals = {}
    for k, v in pairs(self.frame.method_id.local_variable_table) do
@@ -28,6 +34,7 @@ function Frame:locals()
    return locals
 end
 
+-- ============================================================
 function Frame:__tostring()
    -- look up line number
    local line_num = -1

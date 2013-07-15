@@ -6,6 +6,7 @@
 #include "jni_util.h"
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "java_bridge.h"
 #include "lj_internal.h"
 
 /* Lua wrappers for method operations */
@@ -15,26 +16,16 @@ static int lj_get_method_id(lua_State *L)
   JNIEnv *jni = current_jni();
   jclass class;
   jmethodID method_id;
-  const char *class_name;
   const char *method_name;
   const char *args;
   const char *ret;
   char *sig;
 
-  class_name = luaL_checkstring(L, 1);
+  class = *(jclass *)luaL_checkudata(L, 1, "jobject");
   method_name = luaL_checkstring(L, 2);
   args = luaL_checkstring(L, 3);
   ret = luaL_checkstring(L, 4);
   lua_pop(L, 4);
-
-  /* get class */
-  class = (*jni)->FindClass(jni, class_name);
-  EXCEPTION_CLEAR(jni);
-  if (class == NULL)
-  {
-    lua_pushnil(L);
-    return 1;
-  }
 
   /* build signature string */
   sig = malloc(strlen(args) + strlen(ret) + 10);
@@ -68,7 +59,7 @@ static int lj_get_local_variable_table(lua_State *L)
   jint count;
   int i;
 
-  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetLocalVariableTable(current_jvmti(), method_id, &count, &vars);
@@ -103,7 +94,8 @@ static int lj_get_local_variable_table(lua_State *L)
     lua_setfield(L, -2, vars[i].name);
   }
 
-  free_jvmti_refs(current_jvmti(), vars, (void *)-1);
+  if (count)
+	free_jvmti_refs(current_jvmti(), vars, (void *)-1);
 
   return 1;
 }
@@ -115,7 +107,7 @@ static int lj_get_line_number_table(lua_State *L)
   jvmtiLineNumberEntry *lines = NULL;
   int i;
 
-  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetLineNumberTable(current_jvmti(), method_id, &line_count, &lines);
@@ -147,7 +139,7 @@ static int lj_get_method_name(lua_State *L)
   char *method_name = NULL;
   char *sig = NULL;
 
-  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetMethodName(current_jvmti(), method_id, &method_name, &sig, NULL);
@@ -170,7 +162,7 @@ static int lj_get_method_declaring_class(lua_State *L)
   jmethodID method_id;
   jclass class;
 
-  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetMethodDeclaringClass(current_jvmti(), method_id, &class);
@@ -186,7 +178,7 @@ static int lj_get_method_modifiers(lua_State *L)
   jmethodID method_id;
   jint modifiers;
 
-  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id_mt");
+  method_id = *(jmethodID *)luaL_checkudata(L, 1, "jmethod_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetMethodModifiers(current_jvmti(), method_id, &modifiers);

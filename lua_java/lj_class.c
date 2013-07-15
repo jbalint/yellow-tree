@@ -2,6 +2,7 @@
 #include "jni_util.h"
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "java_bridge.h"
 #include "lj_internal.h"
 
 /* Lua wrappers for class operations */
@@ -39,7 +40,7 @@ static int lj_get_class_fields(lua_State *L)
   jclass class;
   int i;
 
-  class = *(jclass *)luaL_checkudata(L, 1, "jobject_mt");
+  class = *(jclass *)luaL_checkudata(L, 1, "jobject");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetClassFields(current_jvmti(), class, &field_count, &fields);
@@ -53,7 +54,8 @@ static int lj_get_class_fields(lua_State *L)
     lua_rawseti(L, -2, i+1);
   }
 
-  free_jvmti_refs(current_jvmti(), fields, (void *)-1);
+  if (fields)
+	free_jvmti_refs(current_jvmti(), fields, (void *)-1);
 
   return 1;
 }
@@ -65,7 +67,7 @@ static int lj_get_class_methods(lua_State *L)
   jclass class;
   int i;
 
-  class = *(jclass *)luaL_checkudata(L, 1, "jobject_mt");
+  class = *(jclass *)luaL_checkudata(L, 1, "jobject");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetClassMethods(current_jvmti(), class, &method_count, &methods);
@@ -79,7 +81,8 @@ static int lj_get_class_methods(lua_State *L)
     lua_rawseti(L, -2, i+1);
   }
 
-  free_jvmti_refs(current_jvmti(), methods, (void *)-1);
+  if (methods)
+	free_jvmti_refs(current_jvmti(), methods, (void *)-1);
 
   return 1;
 }
@@ -89,7 +92,7 @@ static int lj_get_source_filename(lua_State *L)
   jobject class;
   char *sourcefile = NULL;
 
-  class = *(jobject *)luaL_checkudata(L, 1, "jobject_mt");
+  class = *(jobject *)luaL_checkudata(L, 1, "jobject");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetSourceFileName(current_jvmti(), class, &sourcefile);

@@ -3,12 +3,6 @@
 
 #include "lua_java.h"
 
-/* we need to keep class paired with field_id due to JVMTI API */
-typedef struct {
-  jfieldID field_id;
-  jclass class;
-} lj_field_id;
-
 jobject get_current_java_thread();
 jvmtiEnv *current_jvmti();
 JNIEnv *current_jni();

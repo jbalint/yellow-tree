@@ -7,6 +7,8 @@
 #include <jni.h>
 #include <jvmti.h>
 
+#include "myjni.h"
+
 typedef struct {
   char *cls;
   char *func;

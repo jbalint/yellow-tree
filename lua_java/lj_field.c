@@ -4,6 +4,7 @@
 #include "jni_util.h"
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "java_bridge.h"
 #include "lj_internal.h"
 
 /* Lua wrappers for field operations */
@@ -57,7 +58,7 @@ static int lj_get_field_name(lua_State *L)
   char *field_name = NULL;
   char *sig = NULL;
 
-  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
+  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetFieldName(current_jvmti(), field_id->class, field_id->field_id, &field_name, &sig, NULL);
@@ -80,7 +81,7 @@ static int lj_get_field_declaring_class(lua_State *L)
   lj_field_id *field_id;
   jclass class;
 
-  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
+  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetFieldDeclaringClass(current_jvmti(), field_id->class, field_id->field_id, &class);
@@ -96,7 +97,7 @@ static int lj_get_field_modifiers(lua_State *L)
   jint modifiers;
   lj_field_id *field_id;
 
-  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id_mt");
+  field_id = (lj_field_id *)luaL_checkudata(L, 1, "jfield_id");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->GetFieldModifiers(current_jvmti(), field_id->class, field_id->field_id, &modifiers);

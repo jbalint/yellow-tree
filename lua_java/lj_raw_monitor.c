@@ -2,6 +2,7 @@
 #include "jni_util.h"
 #include "lua_interface.h"
 #include "lua_java.h"
+#include "java_bridge.h"
 #include "lj_internal.h"
 
 /* Lua wrappers for raw monitor operations */
@@ -26,7 +27,7 @@ static int lj_destroy_raw_monitor(lua_State *L)
 {
   jrawMonitorID monitor;
 
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->DestroyRawMonitor(current_jvmti(), monitor);
@@ -39,7 +40,7 @@ static int lj_raw_monitor_enter(lua_State *L)
 {
   jrawMonitorID monitor;
 
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->RawMonitorEnter(current_jvmti(), monitor);
@@ -52,7 +53,7 @@ static int lj_raw_monitor_exit(lua_State *L)
 {
   jrawMonitorID monitor;
 
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->RawMonitorExit(current_jvmti(), monitor);
@@ -66,7 +67,7 @@ static int lj_raw_monitor_wait(lua_State *L)
   jrawMonitorID monitor;
   jlong wait;
 
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
   wait = luaL_checkint(L, 2);
   lua_pop(L, 2);
 
@@ -80,7 +81,7 @@ static int lj_raw_monitor_notify(lua_State *L)
 {
   jrawMonitorID monitor;
 
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->RawMonitorNotify(current_jvmti(), monitor);
@@ -93,7 +94,7 @@ static int lj_raw_monitor_notify_all(lua_State *L)
 {
   jrawMonitorID monitor;
 
-  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor_mt");
+  monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
   lua_pop(L, 1);
 
   lj_err = (*current_jvmti())->RawMonitorNotifyAll(current_jvmti(), monitor);
