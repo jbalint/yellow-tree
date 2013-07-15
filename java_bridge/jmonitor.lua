@@ -2,6 +2,17 @@ local jmonitor = { classname = "jmonitor" }
 jmonitor.__index = jmonitor
 
 -- ============================================================
+-- create a new jmonitor object including raw pointer creation
+function jmonitor.new(name)
+   local jmonitor_raw = lj_create_raw_monitor(name)
+   local self = jmonitor.create(jmonitor_raw)
+   self.name = name
+   return self
+end
+
+-- ============================================================
+-- create a new jmonitor object from a raw pointer
+-- jmonitor.new() should be used where possible
 function jmonitor.create(jmonitor_raw)
    local self = {}
    self.jmonitor_raw = jmonitor_raw

@@ -36,13 +36,13 @@ dbgio = require("console_io")
 -- TODO should be moved up into C code to protect lua_State
 -- TODO doesn't prevent re-entry on same thread, will require at least g() to be called twice
 -- TODO make sure this doesn't deadlock on re-entry
-debug_lock = jmonitor.create(lj_create_raw_monitor("debug_lock"))
+debug_lock = jmonitor.new("debug_lock")
 -- current thread being debugged, should be set when debug_lock is acquired
 -- and cleared when debug_lock is released
 debug_thread = nil
 
 -- used to wait for a debug event
-debug_event = jmonitor.create(lj_create_raw_monitor("debug_event"))
+debug_event = jmonitor.create("debug_event")
 
 ThreadName = {}
 ThreadName.CMD_THREAD = "this is init'd in start_cmd"
