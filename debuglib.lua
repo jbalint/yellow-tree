@@ -280,7 +280,7 @@ function bp(method, line_num)
       return disp
    end
 
-   lj_set_breakpoint(b.method_id.jmethod_id_raw, b.location)
+   lj_set_breakpoint(b.method_id.method_id_raw, b.location)
    table.insert(breakpoints, b)
    dbgio:print("ok")
 
@@ -355,7 +355,7 @@ function cb_breakpoint(thread, method_id_raw, location)
    debug_thread = current_thread()
 
    -- TODO should be done in C code?
-   local method_id = jmethod_id.create(method_id_raw, nil)
+   local method_id = jmethod_id.from_raw_method_id(method_id_raw)
 
    local bp
    for idx, v in pairs(breakpoints) do

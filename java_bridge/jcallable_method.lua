@@ -28,9 +28,9 @@ local function parse_arg_spec(argspec)
 end
 
 -- ============================================================
-function jcallable_method.create(jobject, possible_methods)
+function jcallable_method.create(object, possible_methods)
    local self = {}
-   self.jobject = jobject
+   self.object = object
    self.possible_methods = possible_methods
    setmetatable(self, jcallable_method)
    return self
@@ -44,15 +44,15 @@ function jcallable_method:__call(...)
    local argc = #args
    -- filter out non-matching methods
    local possible2 = {}
-   local jobject = self.jobject
+   local object = self.object
    --.... this loop only exists because there is no "continue" in lua
    for i,m in ipairs(self.possible_methods) do
       -- short circuit match for no args
       if #args == 0 and m.args == "" then
-		 if m.modifiers.static and jobject.class.name ~= "java.lang.Class" then
-			jobject = jobject.class
+		 if m.modifiers.static and object.class.name ~= "java.lang.Class" then
+			object = object.class
 		 end
-		 return m(jobject.jobject_raw, 0)
+		 return m(object.object_raw, 0)
       end
 
       -- only try to match methods with the same number of arguments
@@ -82,15 +82,15 @@ function jcallable_method:__call(...)
 		 elseif (t == "F" or t == "D") and type(argi) == "number" then
 			table.insert(jargs, t)
 			table.insert(jargs, argi)
-		 elseif string.sub(t, 1, 1) == "[" and type(argi) == "table" and argi.jobject_raw and argi.class.name == t then
+		 elseif string.sub(t, 1, 1) == "[" and type(argi) == "table" and argi.object_raw and argi.class.name == t then
 			table.insert(jargs, "[")
-			table.insert(jargs, argi.jobject_raw)
+			table.insert(jargs, argi.object_raw)
 		 elseif t == "Ljava/lang/String;" and type(argi) ~= "userdata" and type(argi) ~= "table" then
 			table.insert(jargs, "STR")
 			table.insert(jargs, string.format("%s", argi))
 		 elseif (string.sub(t, 1, 1) == "L" or string.sub(t, 1, 2) == "[L") and
 		        type(argi) == "table" and
-			    argi.jobject_raw then
+			    argi.object_raw then
 		        --string.find(string.format("%s", argi), "jobject@") == 1 then
 			local name = t
 			-- from L; for non-arrays
@@ -101,16 +101,16 @@ function jcallable_method:__call(...)
 			assert(tc)
 			if tc:isAssignableFrom(argi.class) then
 			   table.insert(jargs, "L")
-			   table.insert(jargs, argi.jobject_raw)
+			   table.insert(jargs, argi.object_raw)
 			end
 		 end
 
 		 -- call only if all args matched
 		 if #jargs == (argc * 2) then
-			if m.modifiers.static and jobject.class.name ~= "java.lang.Class" then
-			   jobject = jobject.class
+			if m.modifiers.static and object.class.name ~= "java.lang.Class" then
+			   object = object.class
 			end
-			return m(jobject.jobject_raw, argc, unpack(jargs))
+			return m(object.object_raw, argc, unpack(jargs))
 		 end
       end
       --print("more than one possible method, using: " .. method_id.name .. " from " .. lj_toString(method_id.class))

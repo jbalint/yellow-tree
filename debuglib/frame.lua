@@ -9,7 +9,7 @@ function Frame.get_frame(thread, depth)
 	  return nil
    end
    frame.thread = thread
-   frame.method_id = jmethod_id.create(frame.method_id, nil)
+   frame.method_id = jmethod_id.from_raw_method_id(frame.method_id)
 
    setmetatable(frame, Frame)
    return frame

@@ -2,14 +2,14 @@ local jmethod_id = {}
 jmethod_id.__index = jmethod_id
 
 -- ============================================================
-function jmethod_id.create(jmethod_id_raw, jclassX)
+function jmethod_id.create(method_id_raw, class)
+   assert(method_id_raw)
+   assert(class)
+   assert(class.classname == "jclass")
    local self = {}
-   self.jmethod_id_raw = jmethod_id_raw
-   self.class = jclassX
-   if not self.class then
-	  self.class = jclass.create(lj_get_method_declaring_class(self.jmethod_id_raw))
-   end
-   local ljmn = lj_get_method_name(self.jmethod_id_raw)
+   self.method_id_raw = method_id_raw
+   self.class = class
+   local ljmn = lj_get_method_name(self.method_id_raw)
    self.name = ljmn.name
    self.sig = ljmn.sig
 
@@ -21,9 +21,9 @@ function jmethod_id.create(jmethod_id_raw, jclassX)
    self.ret = string.match(sig, "%).*$")
    self.ret = string.sub(self.ret, 2)
 
-   self.line_number_table = lj_get_line_number_table(self.jmethod_id_raw)
-   self.local_variable_table = lj_get_local_variable_table(self.jmethod_id_raw)
-   self.modifiers = lj_get_method_modifiers_table(lj_get_method_modifiers(self.jmethod_id_raw))
+   self.line_number_table = lj_get_line_number_table(self.method_id_raw)
+   self.local_variable_table = lj_get_local_variable_table(self.method_id_raw)
+   self.modifiers = lj_get_method_modifiers_table(lj_get_method_modifiers(self.method_id_raw))
 
    setmetatable(self, jmethod_id)
    return self
@@ -34,13 +34,19 @@ function jmethod_id.find(complete_method_sig)
    local method_sig = jmethod_id.parse_complete_method_signature(complete_method_sig)
    local jclass = jclass.find(method_sig.class_name)
    -- TODO defer this to class? jclass.find_method(...)
-   local raw_method_id = lj_get_method_id(jclass.jobject_raw, method_sig.method_name,
+   local raw_method_id = lj_get_method_id(jclass.object_raw, method_sig.method_name,
 										  method_sig.args, method_sig.ret)
    if raw_method_id then
 	  return jmethod_id.create(raw_method_id, jclass)
    else
 	  return nil
    end
+end
+
+-- ============================================================
+function jmethod_id.from_raw_method_id(method_id_raw)
+   local class = jclass.create(lj_get_method_declaring_class(method_id_raw))
+   return jmethod_id.create(method_id_raw, class)
 end
 
 -- ============================================================
@@ -83,8 +89,8 @@ function jmethod_id:get_preferred_ret_type()
 end
 
 -- ============================================================
-function jmethod_id:__call(jobject_raw, argCount, ...)
-   local ret_val = lj_call_method(jobject_raw, self.jmethod_id_raw,
+function jmethod_id:__call(object_raw, argCount, ...)
+   local ret_val = lj_call_method(object_raw, self.method_id_raw,
 								  self.modifiers.static,
 								  self:get_preferred_ret_type(),
 								  argCount, ...)
@@ -101,7 +107,7 @@ end
 -- ============================================================
 function jmethod_id:__tostring()
    return string.format("jmethod_id@%s %s.%s%s",
-						lj_pointer_to_string(self.jmethod_id_raw),
+						lj_pointer_to_string(self.method_id_raw),
 						self.class.name,
 						self.name,
 						self.sig)

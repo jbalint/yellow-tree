@@ -9,8 +9,8 @@ local jthread = {
 }
 
 -- ============================================================
-function jthread.create(jobject_raw)
-   local self = jobject.create(jobject_raw):global_ref() -- call superclass ctor
+function jthread.create(object_raw)
+   local self = jobject.create(object_raw):global_ref() -- call superclass ctor
    setmetatable(self, jthread)
    self.event_queue = EventQueue.new(self.name)
    return self
@@ -18,18 +18,18 @@ end
 
 -- ============================================================
 function jthread:get_raw_frame(depth)
-   return lj_get_stack_frame(self.jobject_raw, depth)
+   return lj_get_stack_frame(self.object_raw, depth)
 end
 
 -- ============================================================
 function jthread:__gc()
-   lj_delete_global_ref(self.jobject_raw)
+   lj_delete_global_ref(self.object_raw)
 end
 
 -- ============================================================
 function jthread:__index(key)
    if key == "frame_count" then
-	  return lj_get_frame_count(self.jobject_raw)
+	  return lj_get_frame_count(self.object_raw)
    elseif key == "name" then
 	  return self.getName().toString()
    end
@@ -39,8 +39,8 @@ end
 -- ============================================================
 function jthread:__tostring()
    return string.format("jthread@%s: %s",
-						lj_pointer_to_string(self.jobject_raw),
-						lj_toString(self.jobject_raw))
+						lj_pointer_to_string(self.object_raw),
+						lj_toString(self.object_raw))
 end
 
 -- ============================================================

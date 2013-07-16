@@ -32,26 +32,26 @@ jcallable_method = require("java_bridge/jcallable_method")
 
 -- ============================================================
 -- kind of hack-y, but easier than doing it in every possible place in C code
-function create_jobject(jobject_raw)
-   if not jobject_raw then
+function create_jobject(object_raw)
+   if not object_raw then
 	  return nil
    end
 
    -- get the class name
    local getClassMethod_raw = lj_get_method_id(lj_find_class("java/lang/Object"),
 											   "getClass", "", "Ljava/lang/Class;")
-   local class_raw = lj_call_method(jobject_raw, getClassMethod_raw, false, "L", 0)
+   local class_raw = lj_call_method(object_raw, getClassMethod_raw, false, "L", 0)
    local getNameMethod_raw = lj_get_method_id(lj_find_class("java/lang/Class"),
 											  "getName", "", "Ljava/lang/String;")
    local class_name = lj_call_method(class_raw, getNameMethod_raw, false, "STR", 0)
 
    -- discriminate based on name
    if class_name == "java.lang.Class" then
-	  return jclass.create(jobject_raw)
+	  return jclass.create(object_raw)
    elseif class_name == "java.lang.Thread" then
-	  return jthread.create(jobject_raw)
+	  return jthread.create(object_raw)
    elseif class_name:sub(1, 1) == "[" then
-	  return jarray.create(jobject_raw)
+	  return jarray.create(object_raw)
    end
 
    -- see if java.lang.Thread is "assignable from" the class
@@ -60,11 +60,11 @@ function create_jobject(jobject_raw)
    if lj_call_method(lj_find_class("java/lang/Thread"),
 					 isAssignableFromMethod_raw, false, "Z", 1, "Ljava/lang/Class;",
 					 class_raw) then
-	  return jthread.create(jobject_raw)
+	  return jthread.create(object_raw)
    end
 
    -- fallback to jobject
-   return jobject.create(jobject_raw)
+   return jobject.create(object_raw)
 end
 
 -- ============================================================
