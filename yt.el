@@ -96,19 +96,19 @@
   ;; 2 = frame number in brackets, e.g. [1]
   ;; 3 = class name, everything up to `.'
   ;;     and method name and args
+  ;;   #1 match string = class name
+  ;;   #2 match string = method name
   ;; 4 = bytecode location
   ;; 5 = filename and line number
-  ;;                 1    2             3                   4      5
-  (if (string-match "\\*? +\\[[0-9]+\\] \\(.*?\\)..*?(.*? - [0-9]+ (\\(.*?\\):\\(-?[0-9]+\\))" string)
+  ;;   #3 match string = filename
+  ;;   #4 match string = line number
+  ;;                 1    2             3                             4      5
+  (if (string-match "\\*? +\\[[0-9]+\\] \\(.*\\)\\.\\([^.]*?\\)(.*? - [0-9]+ (\\(.*?\\):\\(-?[0-9]+\\))" string)
       (let* ((classname (match-string 1 string))
-	     (filename (match-string 2 string))
-	     (linenum (string-to-number (match-string 3 string))))
+	     (filename (match-string 3 string))
+	     (linenum (string-to-number (match-string 4 string))))
 	(if (and (>= linenum 0) (not (string-equal "<unknown>" filename)))
-	    (let ((filepath (if (search "/" classname)
-				(concat (replace-regexp-in-string
-					 "^\\(.*\\/\\).*$" "\\1" classname)
-					filename)
-			      filename)))
+		(let ((filepath (concat (replace-regexp-in-string "\\." "/" classname) ".java")))
 	      (setq gud-last-frame (cons filepath linenum))))))
   string)
 
