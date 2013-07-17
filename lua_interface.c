@@ -68,18 +68,26 @@ void lua_interface_init(JavaVM *jvm, jvmtiEnv *jvmti, jrawMonitorID thread_resum
   luaL_openlibs(lua_state);
 
   lj_init(lua_state, jvm, jvmti);
+
+  lua_pushcfunction(lua_state, traceback);
   /* this must be called AFTER lj_init() so the JVMTI callbacks can be registered */
-  if (luaL_dostring(lua_state, "require('debuglib')"))
+  if (luaL_loadstring(lua_state, "require('debuglib')") || lua_pcall(lua_state, 0, 0, -2))
   {
     fprintf(stderr, "Failed to load debuglib.lua: %s\n", lua_tostring(lua_state, -1));
     abort();
   }
+  lua_remove(lua_state, -1);
+
   lua_pushcfunction(lua_state, traceback);
   lua_getglobal(lua_state, "jmonitor");
   lua_getfield(lua_state, -1, "create");
   lua_remove(lua_state, -2);
   new_jmonitor(lua_state, thread_resume_monitor, "yellow_tree_thread_resume_monitor");
-  lua_pcall(lua_state, 1, 1, -3);
+  if (lua_pcall(lua_state, 1, 1, -3))
+  {
+    fprintf(stderr, "Failed to initialize: %s\n", lua_tostring(lua_state, -1));
+    abort();
+  }
   lua_remove(lua_state, -2);
   lua_setglobal(lua_state, "thread_resume_monitor");
 }
