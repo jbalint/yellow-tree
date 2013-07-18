@@ -42,7 +42,7 @@ debug_lock = jmonitor.new("debug_lock")
 debug_thread = nil
 
 -- used to wait for a debug event
-debug_event = jmonitor.create("debug_event")
+debug_event = jmonitor.new("debug_event")
 
 ThreadName = {}
 ThreadName.CMD_THREAD = "this is init'd in start_cmd"
@@ -350,7 +350,7 @@ end
 -- ============================================================
 -- Handle the callback when a breakpoint is hit
 -- ============================================================
-function cb_breakpoint(thread, method_id_raw, location)
+function cb_breakpoint(thread_raw, method_id_raw, location)
    debug_lock:lock()
    debug_thread = current_thread()
 
@@ -391,10 +391,10 @@ function cb_breakpoint(thread, method_id_raw, location)
    debug_lock:unlock()
 end
 
-function cb_method_entry(thread, method_id)
+function cb_method_entry(thread_raw, method_id_raw)
 end
 
-function cb_method_exit(thread, method_id, was_popped_by_exception, return_value)
+function cb_method_exit(thread_raw, method_id_raw, was_popped_by_exception, return_value)
    debug_lock:lock()
    debug_thread = current_thread()
 
@@ -406,17 +406,20 @@ function cb_method_exit(thread, method_id, was_popped_by_exception, return_value
    debug_lock:unlock()
 end
 
-function cb_single_step(thread, method_id, location)
+function cb_single_step(thread_raw, method_id_raw, location)
    debug_lock:lock()
    debug_thread = current_thread()
+
+   local method_id = jmethod_id.from_raw_method_id(method_id_raw)
 
    if next_line_method_id ~= method_id then
       -- single stepped into a different method, disable single steps until
       -- it exits
       lj_clear_jvmti_callback("single_step")
       local previous_frame_count = current_thread().frame_count
-      local check_nested_method_return = function(thread, method_id, was_popped_by_exception, return_value)
-         if lj_get_frame_count(thread.jthread) == previous_frame_count then
+      local check_nested_method_return = function(thread_raw, method_id_raw, was_popped_by_exception, return_value)
+         local thread = jthread.create(thread_raw)
+         if thread.frame_count == previous_frame_count then
             lj_set_jvmti_callback("method_exit", cb_method_exit)
             lj_set_jvmti_callback("single_step", cb_single_step)
          end
@@ -587,7 +590,17 @@ function dump_internal(o)
    for i = 1, dump_depth do
       prefix = prefix .. "  "
    end
-   if type(o) == 'table' then
+
+   local classname = ""
+   if type(o) == "table" and o.classname then
+      classname = o.classname
+   end
+
+   if classname == "jclass" then
+      return o.dump(prefix)
+   elseif classname == "jfield_id" or classname == "jmethod_id" then
+      return string.format("%s%s", prefix, o)
+   elseif type(o) == 'table' then
       local s = '{ ' .. "\n"
       for k,v in pairs(o) do
          if type(k) == 'table' then

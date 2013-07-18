@@ -4,7 +4,7 @@
 require("lunit")
 module("test_breakpoints", lunit.testcase, package.seeall)
 
--- This is a bit of a weird case because of how the
+-- This is a bit of a weird case because of how the breakpoint is hit on the same thread as the calling code
 function test_breakpoint_setting_by_string()
    local x = 1
    bp("java/lang/StringBuilder.append(Z)Ljava/lang/StringBuilder;")
