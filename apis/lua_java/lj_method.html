@@ -1,0 +1,549 @@
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<html>
+                <head>
+        <title>lj_method</title>
+        <link rel="stylesheet" href="../resources/style.css" type="text/css" />
+        <script type="text/javascript" src="../resources/mtmtrack.js"></script>
+    </head>
+    <body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+        <div id="Im202f765am13fcf036b9amm65a8">
+        <a id="Im202f765am13fcf036b9amm65a8"/>
+            
+
+
+
+            <p>lua_java</p>
+    <br/>
+<h2>Interface lj_method</h2>
+<!-- ================================== INHERITANCE ================================= -->
+    
+<dl>
+
+
+</dl>
+<hr/>
+<dl>
+<dt>
+
+<!-- ==================================== SIGNATURE ================================== -->
+    public interface <b>lj_method</b>
+
+        <!-- parent rendering -->
+            <div>
+            <b>Namespace: </b>
+            <a href="../lua_java.html">lua_java</a>
+        </div>
+    
+    </dt>
+<br/>
+<br/>
+    <dd>Low-level wrapper for Java method operations.</dd>
+    </dl>
+
+<!-- ============================ DIAGRAMS ================================ -->
+
+
+                                                                                
+
+
+<!-- ========================================= SUMMARIES ============================================ -->
+
+    <p><hr/></p>
+                                                            <dt>
+<a id="Im202f765am13fcf036b9amm65a8_method_summary"/>
+<table border="1" cellpadding="3" cellspacing="0" width="100%">
+<tr bgcolor="#FFCC33" id="TableHeadingColor">
+<td valign="top" colspan="2">
+<font size="+1">
+<table border="0">
+<tr>
+<td>
+<img src="../resources/Method.gif"/>
+</td>
+<td valign="middle">
+<font size="+1"><b>Method  Summary</b></font>
+</td>
+</tr>
+</table>
+</font>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../table.html">table</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_line_number_table</b></b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)</code>
+<br/><div><p>Retrieve the line no &lt;=&gt; offset associates for the method (if available).</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../table.html">table</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_local_variable_table</b></b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)</code>
+<br/><div><p>Retrieves the mapping from local variable slots to local variable names.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../java_bridge/jclass.html">java_bridge.jclass</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_method_declaring_class</b></b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)</code>
+<br/><div>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_method_id</b></b>(String&nbsp;class_name, String&nbsp;method_name, String&nbsp;args, String&nbsp;ret)</code>
+<br/><div>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+int&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_method_modifiers</b></b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)</code>
+<br/><div><p>Returns an integer encoding the modifiers. c.f. <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.6">Java method modifiers</a></p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../table.html">table</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_method_modifiers_table</b></b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)</code>
+<br/><div><p>Get the method modifiers in a Lua-accessible format.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../table.html">table</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_method_name</b></b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)</code>
+<br/><div>&nbsp;</div>
+</td>
+</tr>
+</table>
+</dt>
+<br/>
+                <!--  Association Association 0 true Im202f765am13fcf036b9amm65a8 -->
+                <!--  AssociationEnd Own Association End 0 true Im202f765am13fcf036b9amm65a8 -->
+        <!--  AssociationEnd Opposite Association End 0 true Im202f765am13fcf036b9amm65a8 -->
+    
+
+<!-- =========== TAGGED VALUES =========== -->
+<!-- =========== CONSTRAINTS =========== -->
+    
+<!-- ================================================= DETAILS ============================================ -->
+                <dt>
+<a id="Im202f765am13fcf036b9amm65a8_method_details"></a>
+<table border="1" cellpadding="3" cellspacing="0" width="100%">
+<tr bgcolor="#FFCC33" id="TableHeadingColor">
+<td valign="top" colspan="2">
+<font size="+1">
+<table border="0">
+<tr>
+<td>
+<img src="../resources/Method.gif"/>
+</td>
+<td valign="middle">
+<font size="+1"><b>Method  Detail</b></font>
+</td>
+</tr>
+</table>
+</font>
+</td>
+</tr>
+</table>
+<br/>
+<a id="lj_get_line_number_table(java_bridge.jmethod_id method)">
+</a>
+<font size="+1"><b>lj_get_line_number_table</b></font>
+<p>
+<code>public 
+<a href="../table.html">table</a>
+ <b>lj_get_line_number_table</b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Retrieve the line no &lt;=&gt; offset associates for the method (if available).</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>method</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>A array-table of the form:
+<ol>
+<li>
+<table border="1" width="100%" cellpadding="1" cellspacing="2">
+<tr>
+<td>&quot;location&quot;</td>
+<td>bytecode offset of code : int</td>
+</tr>
+<tr>
+<td>&quot;line_num&quot;</td>
+<td>corresponding source line number : int</td>
+</tr>
+</table>
+</li>
+<li>
+<table border="1" width="100%" cellpadding="1" cellspacing="2">
+<tr>
+<td>same as above</td>
+<td>same as above</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+</tr>
+</table>
+</li>
+</ol>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_local_variable_table(java_bridge.jmethod_id method)">
+</a>
+<font size="+1"><b>lj_get_local_variable_table</b></font>
+<p>
+<code>public 
+<a href="../table.html">table</a>
+ <b>lj_get_local_variable_table</b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Retrieves the mapping from local variable slots to local variable names.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>method</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>A table of the form:
+<table border="1" width="100%" cellpadding="1" cellspacing="2">
+<tr>
+<td>varName1</td>
+<td>
+<table border="1" width="100%" cellpadding="1" cellspacing="2">
+<tr>
+<td>&quot;name&quot;</td>
+<td>Name of local variable</td>
+</tr>
+<tr>
+<td>&quot;sig&quot;</td>
+<td>Type</td>
+</tr>
+<tr>
+<td>&quot;start_location&quot;</td>
+<td>Starting location</td>
+</tr>
+<tr>
+<td>&quot;slot&quot;</td>
+<td>Slot in local variable table</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td>varNameN</td>
+<td></td>
+</tr>
+</table>
+<p></p>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_method_declaring_class(java_bridge.jmethod_id method)">
+</a>
+<font size="+1"><b>lj_get_method_declaring_class</b></font>
+<p>
+<code>public 
+<a href="../java_bridge/jclass.html">java_bridge.jclass</a>
+ <b>lj_get_method_declaring_class</b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>method</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_method_id(String class_name, String method_name, String args, String ret)">
+</a>
+<font size="+1"><b>lj_get_method_id</b></font>
+<p>
+<code>public 
+<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>
+ <b>lj_get_method_id</b>(String&nbsp;class_name, String&nbsp;method_name, String&nbsp;args, String&nbsp;ret)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>class_name</code>
+ - 
+
+</dd>
+    <dd><code>method_name</code>
+ - 
+
+</dd>
+    <dd><code>args</code>
+ - 
+
+</dd>
+    <dd><code>ret</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_method_modifiers(java_bridge.jmethod_id method)">
+</a>
+<font size="+1"><b>lj_get_method_modifiers</b></font>
+<p>
+<code>public 
+int <b>lj_get_method_modifiers</b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Returns an integer encoding the modifiers. c.f. <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.6">Java method modifiers</a></p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>method</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_method_modifiers_table(java_bridge.jmethod_id method)">
+</a>
+<font size="+1"><b>lj_get_method_modifiers_table</b></font>
+<p>
+<code>public 
+<a href="../table.html">table</a>
+ <b>lj_get_method_modifiers_table</b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Get the method modifiers in a Lua-accessible format.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>method</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>A table of boolean values with keys:
+<table border="1" width="100%" cellpadding="1" cellspacing="2">
+<tr>
+<td>public</td>
+<td></td>
+</tr>
+<tr>
+<td>private</td>
+<td></td>
+</tr>
+<tr>
+<td>protected</td>
+<td></td>
+</tr>
+<tr>
+<td>static</td>
+<td></td>
+</tr>
+<tr>
+<td>final</td>
+<td></td>
+</tr>
+<tr>
+<td>synchronized</td>
+<td></td>
+</tr>
+<tr>
+<td>bridge</td>
+<td></td>
+</tr>
+<tr>
+<td>varargs</td>
+<td></td>
+</tr>
+<tr>
+<td>native</td>
+<td></td>
+</tr>
+<tr>
+<td>abstract</td>
+<td></td>
+</tr>
+<tr>
+<td>strict</td>
+<td></td>
+</tr>
+<tr>
+<td>synethetic</td>
+<td></td>
+</tr>
+</table>
+<p></p>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_method_name(java_bridge.jmethod_id method)">
+</a>
+<font size="+1"><b>lj_get_method_name</b></font>
+<p>
+<code>public 
+<a href="../table.html">table</a>
+ <b>lj_get_method_name</b>(<a href="../java_bridge/jmethod_id.html">java_bridge.jmethod_id</a>&nbsp;method)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>method</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>A <em>table</em> of the form:
+<table border="1" width="100%" cellpadding="1" cellspacing="2">
+<tr>
+<td>name : String</td>
+<td>method name</td>
+</tr>
+<tr>
+<td>sig : String</td>
+<td>method signature e.g. (Ljava/lang/String;)V</td>
+</tr>
+</table>
+<p></p>
+</dd>
+</dl>
+</dt>
+    
+    </div>
+      <HR>
+    <center>
+                    <a href="../lua_java/lj_field.html">previous</a>
+        &nbsp
+                <a href="../Table_of_Contents.html">TOC</a>
+        &nbsp
+            <a href="../lua_java/lj_class.html">next</a>
+        </center>
+      <hr/>
+    <div style="font-size:0.8em;">
+Generated with Poseidon for UML<sup><font size='small'>TM</font></sup>.<br/>
+Poseidon is a registered trademark of <a href="http://www.gentleware.com" target="nw">Gentleware AG</a> in the USA and other countries.
+Copyright 2003-2006 Gentleware AG, Ludwigstr. 12, 20357 Hamburg, Germany. All Rights Reserved.
+</div>
+    <div style="font-size:0.8em;">
+  UML is a trademark or registered trademark of Object Management Group, Inc. in the U.S. and other countries.
+</div>
+    </body>
+</html>

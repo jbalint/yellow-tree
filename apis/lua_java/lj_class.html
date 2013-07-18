@@ -1,0 +1,289 @@
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<html>
+                <head>
+        <title>lj_class</title>
+        <link rel="stylesheet" href="../resources/style.css" type="text/css" />
+        <script type="text/javascript" src="../resources/mtmtrack.js"></script>
+    </head>
+    <body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+        <div id="Im202f765am13fcf036b9amm5f5c">
+        <a id="Im202f765am13fcf036b9amm5f5c"/>
+            
+
+
+
+            <p>lua_java</p>
+    <br/>
+<h2>Interface lj_class</h2>
+<!-- ================================== INHERITANCE ================================= -->
+    
+<dl>
+
+
+</dl>
+<hr/>
+<dl>
+<dt>
+
+<!-- ==================================== SIGNATURE ================================== -->
+    public interface <b>lj_class</b>
+
+        <!-- parent rendering -->
+            <div>
+            <b>Namespace: </b>
+            <a href="../lua_java.html">lua_java</a>
+        </div>
+    
+    </dt>
+<br/>
+<br/>
+    <dd>Low-level wrapper for Java class operations.</dd>
+    </dl>
+
+<!-- ============================ DIAGRAMS ================================ -->
+
+
+                                                                                
+
+
+<!-- ========================================= SUMMARIES ============================================ -->
+
+    <p><hr/></p>
+                                                            <dt>
+<a id="Im202f765am13fcf036b9amm5f5c_method_summary"/>
+<table border="1" cellpadding="3" cellspacing="0" width="100%">
+<tr bgcolor="#FFCC33" id="TableHeadingColor">
+<td valign="top" colspan="2">
+<font size="+1">
+<table border="0">
+<tr>
+<td>
+<img src="../resources/Method.gif"/>
+</td>
+<td valign="middle">
+<font size="+1"><b>Method  Summary</b></font>
+</td>
+</tr>
+</table>
+</font>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../java_bridge/jclass.html">java_bridge.jclass</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_find_class</b></b>(String&nbsp;class_name)</code>
+<br/><div><p>Search for a class by name.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+java_bridge.jfield_id[]&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_class_fields</b></b>(<a href="../java_bridge/jclass.html">java_bridge.jclass</a>&nbsp;class)</code>
+<br/><div><p>Wraps <a href="http://docs.oracle.com/javase/7/docs/platform/jvmti/jvmti.html#GetClassFields">GetClassFields()</a></p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+java_bridge.jmethod_id[]&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_class_methods</b></b>(<a href="../java_bridge/jclass.html">java_bridge.jclass</a>&nbsp;class)</code>
+<br/><div><p>Wraps <a href="http://docs.oracle.com/javase/7/docs/platform/jvmti/jvmti.html#GetClassMethods">GetClassMethods()</a></p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+String&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>lj_get_source_filename</b></b>(<a href="../java_bridge/jclass.html">java_bridge.jclass</a>&nbsp;class)</code>
+<br/><div><p>Retrieve the souce file this class is defined in (if available).</p>&nbsp;</div>
+</td>
+</tr>
+</table>
+</dt>
+<br/>
+                <!--  Association Association 0 true Im202f765am13fcf036b9amm5f5c -->
+                <!--  AssociationEnd Own Association End 0 true Im202f765am13fcf036b9amm5f5c -->
+        <!--  AssociationEnd Opposite Association End 0 true Im202f765am13fcf036b9amm5f5c -->
+    
+
+<!-- =========== TAGGED VALUES =========== -->
+<!-- =========== CONSTRAINTS =========== -->
+    
+<!-- ================================================= DETAILS ============================================ -->
+                <dt>
+<a id="Im202f765am13fcf036b9amm5f5c_method_details"></a>
+<table border="1" cellpadding="3" cellspacing="0" width="100%">
+<tr bgcolor="#FFCC33" id="TableHeadingColor">
+<td valign="top" colspan="2">
+<font size="+1">
+<table border="0">
+<tr>
+<td>
+<img src="../resources/Method.gif"/>
+</td>
+<td valign="middle">
+<font size="+1"><b>Method  Detail</b></font>
+</td>
+</tr>
+</table>
+</font>
+</td>
+</tr>
+</table>
+<br/>
+<a id="lj_find_class(String class_name)">
+</a>
+<font size="+1"><b>lj_find_class</b></font>
+<p>
+<code>public 
+<a href="../java_bridge/jclass.html">java_bridge.jclass</a>
+ <b>lj_find_class</b>(String&nbsp;class_name)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Search for a class by name.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>class_name</code>
+ - A class name in Java internal form. e.g. <em>java/lang/Thread</em>
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>A <em>jclass</em> object if found, otherwise <em>nil</em>.
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_class_fields(java_bridge.jclass class)">
+</a>
+<font size="+1"><b>lj_get_class_fields</b></font>
+<p>
+<code>public 
+java_bridge.jfield_id[] <b>lj_get_class_fields</b>(<a href="../java_bridge/jclass.html">java_bridge.jclass</a>&nbsp;class)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Wraps <a href="http://docs.oracle.com/javase/7/docs/platform/jvmti/jvmti.html#GetClassFields">GetClassFields()</a></p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>class</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_class_methods(java_bridge.jclass class)">
+</a>
+<font size="+1"><b>lj_get_class_methods</b></font>
+<p>
+<code>public 
+java_bridge.jmethod_id[] <b>lj_get_class_methods</b>(<a href="../java_bridge/jclass.html">java_bridge.jclass</a>&nbsp;class)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Wraps <a href="http://docs.oracle.com/javase/7/docs/platform/jvmti/jvmti.html#GetClassMethods">GetClassMethods()</a></p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>class</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="lj_get_source_filename(java_bridge.jclass class)">
+</a>
+<font size="+1"><b>lj_get_source_filename</b></font>
+<p>
+<code>public 
+String <b>lj_get_source_filename</b>(<a href="../java_bridge/jclass.html">java_bridge.jclass</a>&nbsp;class)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Retrieve the souce file this class is defined in (if available).</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>class</code>
+ - 
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+</dt>
+    
+    </div>
+      <HR>
+    <center>
+                    <a href="../lua_java/lj_method.html">previous</a>
+        &nbsp
+                <a href="../Table_of_Contents.html">TOC</a>
+        &nbsp
+            <a href="../lua_java/lj_force_early_return.html">next</a>
+        </center>
+      <hr/>
+    <div style="font-size:0.8em;">
+Generated with Poseidon for UML<sup><font size='small'>TM</font></sup>.<br/>
+Poseidon is a registered trademark of <a href="http://www.gentleware.com" target="nw">Gentleware AG</a> in the USA and other countries.
+Copyright 2003-2006 Gentleware AG, Ludwigstr. 12, 20357 Hamburg, Germany. All Rights Reserved.
+</div>
+    <div style="font-size:0.8em;">
+  UML is a trademark or registered trademark of Object Management Group, Inc. in the U.S. and other countries.
+</div>
+    </body>
+</html>

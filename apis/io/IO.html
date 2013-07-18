@@ -1,0 +1,386 @@
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<html>
+                <head>
+        <title>IO</title>
+        <link rel="stylesheet" href="../resources/style.css" type="text/css" />
+        <script type="text/javascript" src="../resources/mtmtrack.js"></script>
+    </head>
+    <body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
+        <div id="Im202f765am13fcf036b9amm7b7e">
+        <a id="Im202f765am13fcf036b9amm7b7e"/>
+            
+
+
+
+            <p>io</p>
+    <br/>
+<h2>Interface IO</h2>
+<!-- ================================== INHERITANCE ================================= -->
+    
+<dl>
+
+
+</dl>
+<hr/>
+<dl>
+<dt>
+
+<!-- ==================================== SIGNATURE ================================== -->
+    public interface <b>IO</b>
+
+        <!-- parent rendering -->
+            <div>
+            <b>Namespace: </b>
+            <a href="../io.html">io</a>
+        </div>
+    
+    </dt>
+<br/>
+<br/>
+    <dd>IO routines.
+<p>Implicitely defined. (interface definition not necessary in Lua)</p></dd>
+    </dl>
+
+<!-- ============================ DIAGRAMS ================================ -->
+
+
+                                                                                
+
+
+<!-- ========================================= SUMMARIES ============================================ -->
+
+    <p><hr/></p>
+                                                            <dt>
+<a id="Im202f765am13fcf036b9amm7b7e_method_summary"/>
+<table border="1" cellpadding="3" cellspacing="0" width="100%">
+<tr bgcolor="#FFCC33" id="TableHeadingColor">
+<td valign="top" colspan="2">
+<font size="+1">
+<table border="0">
+<tr>
+<td>
+<img src="../resources/Method.gif"/>
+</td>
+<td valign="middle">
+<font size="+1"><b>Method  Summary</b></font>
+</td>
+</tr>
+</table>
+</font>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+void&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>debug</b></b>(String&nbsp;str)</code>
+<br/><div><p>Print text in a debug stream (may be OOB).</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+void&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>flush</b></b>()</code>
+<br/><div><p>Flush the output stream.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+<a href="../io/IO.html">io.IO</a>
+&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>new</b></b>()</code>
+<br/><div><p>Create a new instance of a specific IO module.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+void&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>print</b></b>(String&nbsp;str)</code>
+<br/><div><p>Write a line of text to the output stream.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+String&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>read</b></b>(String&nbsp;format)</code>
+<br/><div><p>Read from the input stream.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+String&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>read_line</b></b>()</code>
+<br/><div><p>Read a complete line of text from the input stream.</p>&nbsp;</div>
+</td>
+</tr>
+<tr bgcolor="white" id="TableRowColor">
+<td align="right" valign="top" width="1%">
+<font size="-1">
+<code>public 
+void&nbsp;
+</code>
+</font>
+</td>
+<td valign="top">
+<code><b><b>write</b></b>(String&nbsp;str)</code>
+<br/><div><p>Write a string verbatim to the output stream.</p>&nbsp;</div>
+</td>
+</tr>
+</table>
+</dt>
+<br/>
+                <!--  Association Association 0 true Im202f765am13fcf036b9amm7b7e -->
+                <!--  AssociationEnd Own Association End 0 true Im202f765am13fcf036b9amm7b7e -->
+        <!--  AssociationEnd Opposite Association End 0 true Im202f765am13fcf036b9amm7b7e -->
+    
+
+<!-- =========== TAGGED VALUES =========== -->
+<!-- =========== CONSTRAINTS =========== -->
+    
+<!-- ================================================= DETAILS ============================================ -->
+                <dt>
+<a id="Im202f765am13fcf036b9amm7b7e_method_details"></a>
+<table border="1" cellpadding="3" cellspacing="0" width="100%">
+<tr bgcolor="#FFCC33" id="TableHeadingColor">
+<td valign="top" colspan="2">
+<font size="+1">
+<table border="0">
+<tr>
+<td>
+<img src="../resources/Method.gif"/>
+</td>
+<td valign="middle">
+<font size="+1"><b>Method  Detail</b></font>
+</td>
+</tr>
+</table>
+</font>
+</td>
+</tr>
+</table>
+<br/>
+<a id="debug(String str)">
+</a>
+<font size="+1"><b>debug</b></font>
+<p>
+<code>public 
+void <b>debug</b>(String&nbsp;str)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Print text in a debug stream (may be OOB).</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>str</code>
+ - String or varargs param to print
+
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="flush()">
+</a>
+<font size="+1"><b>flush</b></font>
+<p>
+<code>public 
+void <b>flush</b>()
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Flush the output stream.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+</dl>
+<hr/>
+<br/>
+<a id="new()">
+</a>
+<font size="+1"><b>new</b></font>
+<p>
+<code>public 
+<a href="../io/IO.html">io.IO</a>
+ <b>new</b>()
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Create a new instance of a specific IO module.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Returns:</b></dt>
+    <dd>
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="print(String str)">
+</a>
+<font size="+1"><b>print</b></font>
+<p>
+<code>public 
+void <b>print</b>(String&nbsp;str)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Write a line of text to the output stream.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>str</code>
+ - String or varargs param to print
+
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="read(String format)">
+</a>
+<font size="+1"><b>read</b></font>
+<p>
+<code>public 
+String <b>read</b>(String&nbsp;format)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Read from the input stream.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>format</code>
+ - Format string to read.
+
+</dd>
+  <dt><b>Returns:</b></dt>
+    <dd>The string read from the stream.
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="read_line()">
+</a>
+<font size="+1"><b>read_line</b></font>
+<p>
+<code>public 
+String <b>read_line</b>()
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Read a complete line of text from the input stream.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Returns:</b></dt>
+    <dd>The line read from the stream.
+</dd>
+</dl>
+<hr/>
+<br/>
+<a id="write(String str)">
+</a>
+<font size="+1"><b>write</b></font>
+<p>
+<code>public 
+void <b>write</b>(String&nbsp;str)
+<dl></dl>
+</code>
+</p>
+<dl>
+</dl>
+<br/><dd><p>Write a string verbatim to the output stream.</p></dd>
+<dl>
+</dl>
+<dl>
+</dl>
+<dl>
+  <dt><b>Parameters:</b></dt>
+    <dd><code>str</code>
+ - String or varargs param to print
+
+</dd>
+</dl>
+</dt>
+    
+    </div>
+      <HR>
+    <center>
+                    <a href="../interfaces.html">previous</a>
+        &nbsp
+                <a href="../Table_of_Contents.html">TOC</a>
+        &nbsp
+            <a href="../abstractions.html">next</a>
+        </center>
+      <hr/>
+    <div style="font-size:0.8em;">
+Generated with Poseidon for UML<sup><font size='small'>TM</font></sup>.<br/>
+Poseidon is a registered trademark of <a href="http://www.gentleware.com" target="nw">Gentleware AG</a> in the USA and other countries.
+Copyright 2003-2006 Gentleware AG, Ludwigstr. 12, 20357 Hamburg, Germany. All Rights Reserved.
+</div>
+    <div style="font-size:0.8em;">
+  UML is a trademark or registered trademark of Object Management Group, Inc. in the U.S. and other countries.
+</div>
+    </body>
+</html>
