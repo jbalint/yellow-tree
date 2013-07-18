@@ -1,7 +1,6 @@
 local Frame = require("debuglib/frame")
-
--- local EventQueue = require("event_queue")
-require("event_queue")
+local Event = require("debuglib/event")
+local EventQueue = require("debuglib/event_queue")
 
 local jthread = {
    classname = "jthread",
@@ -47,10 +46,9 @@ end
 function jthread:handle_events()
    while true do
 	  local event = self.event_queue:pop()
-	  --dbgio:debug("Thread ", self.name, " received event ", dump(event))
-	  if event.type == EventType.RESUME then
+	  if event.type == Event.TYPE_RESUME then
 		 return
-	  elseif event.type == EventType.COMMAND then
+	  elseif event.type == Event.TYPE_COMMAND then
 		 -- TODO copied from start_cmd()
 		 local success, m2 = pcall(event.data.chunk)
 		 if not success then

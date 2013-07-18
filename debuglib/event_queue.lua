@@ -16,7 +16,7 @@ function Event:new(thread, type, data)
    return event
 end
 
-EventQueue = {}
+local EventQueue = {}
 EventQueue.__index = EventQueue
 
 -- Create a new event queue
@@ -46,3 +46,4 @@ function EventQueue:push(event)
    self.lock:unlock()
 end
 
+return EventQueue

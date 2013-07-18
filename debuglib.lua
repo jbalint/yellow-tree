@@ -10,7 +10,7 @@
 --  \_____\___/|_| |_| |_|_| |_| |_|\__,_|_| |_|\__,_|___/
 
 require("java_bridge/java_bridge")
-require("event_queue")
+local Event = require("debuglib/event")
 local Frame = require("debuglib/frame")
 
 -- options
@@ -93,7 +93,7 @@ function start_cmd()
 			dbgio:print(m2)
 		 end
 	  else
-		 local event = Event:new(threads[ThreadName.CMD_THREAD], EventType.COMMAND, {chunk=chunk})
+		 local event = Event.new(threads[ThreadName.CMD_THREAD], Event.TYPE_COMMAND, {chunk=chunk})
 		 debug_thread.event_queue:push(event)
 	  end
    end
@@ -104,7 +104,7 @@ end
 -- ============================================================
 function g()
    if debug_thread ~= nil then
-	  local event = Event:new(debug_thread, EventType.RESUME)
+	  local event = Event.new(debug_thread, Event.TYPE_RESUME)
 	  debug_thread.event_queue:push(event)
    else
 	  thread_resume_monitor:notify_without_lock()
