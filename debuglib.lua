@@ -72,9 +72,14 @@ function start_cmd()
       dbgio:print(debug.traceback(err, 2))
    end
    if options.runfile then
-      local success, m2 = xpcall(loadfile(options.runfile), x)
-      if success and not m2 then
-         return true -- prevert restarting of start_cmd()
+      local code, err = loadfile(options.runfile)
+      if not code then
+         dbgio:print("Cannot load " ..err)
+      else
+         local success, m2 = xpcall(code, x)
+         if success and not m2 then
+            return true -- prevert restarting of start_cmd()
+         end
       end
    end
    -- command loop
