@@ -1,4 +1,4 @@
-local jclass = { __tostring = jobject.__tostring, classname = "jclass" }
+local jclass = { classname = "jclass" }
 
 -- ============================================================
 -- create a new jclass.
@@ -25,10 +25,13 @@ function jclass:__index(key)
    if rawget(jclass, key) then
 	  return rawget(jclass, key)
    end
+   if rawget(self, key) then
+	  return rawget(self, key)
+   end
 
-   local jfield_id = self:find_field(key)
-   if jfield_id then
-	  return jfield_id:get_value(self.object_raw)
+   local field_id = self:find_field(key)
+   if field_id then
+	  return field_id:get_value(self.object_raw)
    end
 
    -- check for any methods named `key'
@@ -37,6 +40,38 @@ function jclass:__index(key)
       return jcallable_method.create(self, methods)
    end
    return rawget(self, key) or rawget(jclass, key) or jobject.__index(self, key)
+end
+
+-- ============================================================
+function jclass:__tostring()
+   return string.format("jclass@%s %s",
+						lj_pointer_to_string(self.object_raw),
+						self.name)
+end
+
+-- ============================================================
+function jclass:dump(prefix)
+   prefix = prefix or ""
+
+   -- create the list of (sorted) fields as a string to print
+   local fields_string = ""
+   for i, f in ipairs(self.fields_array) do
+	  fields_string = fields_string .. string.format("%s    %s\n", prefix, f)
+   end
+   if #self.fields_array > 0 then
+	  fields_string = string.format("%sfields:\n%s", prefix, fields_string)
+   end
+
+   local methods_string = ""
+   for i, m in ipairs(self.methods_array) do
+	  methods_string = methods_string .. string.format("%s    %s\n", prefix, m)
+   end
+   if #self.methods_array > 0 then
+	  methods_string = string.format("%smethods:\n%s", prefix, methods_string)
+   end
+
+   return string.format("%sjclass: %s\n%s%s", prefix, self.name,
+						fields_string, methods_string)
 end
 
 -- ============================================================
@@ -58,16 +93,22 @@ function jclass:init_internal(class_name)
    end
 
    self.fields = {}
+   self.fields_array = {}
    for idx, field_raw in pairs(lj_get_class_fields(self.object_raw)) do
 	  local field = jfield_id.create(field_raw, self)
 	  self.fields[field.name] = field
+	  table.insert(self.fields_array, field)
    end
+   table.sort(self.fields_array)
 
    self.methods = {}
+   self.methods_array = {}
    for idx, method_raw in pairs(lj_get_class_methods(self.object_raw)) do
 	  local method = jmethod_id.create(method_raw, self)
 	  self.methods[method.name .. method.sig] = method
+	  table.insert(self.methods_array, method)
    end
+   table.sort(self.methods_array)
 
    setmetatable(self, jclass)
    return self

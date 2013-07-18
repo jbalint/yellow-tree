@@ -1,4 +1,4 @@
-local jmethod_id = {}
+local jmethod_id = { classname = "jmethod_id" }
 jmethod_id.__index = jmethod_id
 
 -- ============================================================
@@ -111,6 +111,15 @@ function jmethod_id:__tostring()
 						self.class.name,
 						self.name,
 						self.sig)
+end
+
+-- ============================================================
+function jmethod_id.__lt(m1, m2)
+   if m1.name ~= m2.name then
+	  return m1.name < m2.name
+   end
+
+   return m1.sig < m2.sig
 end
 
 return jmethod_id

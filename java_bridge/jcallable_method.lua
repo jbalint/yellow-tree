@@ -1,4 +1,4 @@
-local jcallable_method = {}
+local jcallable_method = { classname = "jcallable_method" }
 jcallable_method.__index = jcallable_method
 
 -- ============================================================

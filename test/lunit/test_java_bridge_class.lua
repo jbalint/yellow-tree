@@ -101,6 +101,19 @@ function test_boolean_param()
 end
 
 -- ============================================================
+-- Class access
+-- ============================================================
+function test_class_method_access()
+   local tt = TestTypes
+   assert_not_nil(tt.methods["assign()V"])
+
+   assert_true(#tt.methods_array >= 11)
+   -- test sorting
+   assert_equal("<init>", tt.methods_array[1].name)
+   assert_equal("assign", tt.methods_array[2].name)
+end
+
+-- ============================================================
 -- Array access
 -- ============================================================
 function test_method_invocation_array_matching()

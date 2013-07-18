@@ -1,4 +1,4 @@
-local jfield_id = {}
+local jfield_id = { classname = "jfield_id" }
 jfield_id.__index = jfield_id
 
 -- ============================================================
@@ -36,6 +36,11 @@ end
 function jfield_id:get_value(object_raw)
    local ret_val = lj_get_field(object_raw, self.field_id_raw, self.modifiers.static)
    return create_return_value(ret_val, self.sig)
+end
+
+-- ============================================================
+function jfield_id.__lt(f1, f2)
+   return f1.name < f2.name
 end
 
 return jfield_id
