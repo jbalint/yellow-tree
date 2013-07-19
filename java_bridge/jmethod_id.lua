@@ -33,6 +33,9 @@ end
 function jmethod_id.find(complete_method_sig)
    local method_sig = jmethod_id.parse_complete_method_signature(complete_method_sig)
    local jclass = jclass.find(method_sig.class_name)
+   if not jclass then
+	  return nil
+   end
    -- TODO defer this to class? jclass.find_method(...)
    local raw_method_id = lj_get_method_id(jclass.object_raw, method_sig.method_name,
 										  method_sig.args, method_sig.ret)
