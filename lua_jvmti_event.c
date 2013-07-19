@@ -105,10 +105,11 @@ static void JNICALL cb_method_entry(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread
 
   disable_events_before_callback_handling(lj_L);
 
+  lua_pushcfunction(L, lua_print_traceback);
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
-  lua_call(L, 2, 1);
+  lua_pcall(L, 2, 1, -4);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 
   enable_events_after_callback_handling(lj_L);
@@ -130,12 +131,13 @@ static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
   disable_events_before_callback_handling(lj_L);
 
+  lua_pushcfunction(L, lua_print_traceback);
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
   lua_pushboolean(L, was_popped_by_exception);
   /* TODO return_value must be passed to Lua */
-  lua_call(L, 3, 1);
+  lua_pcall(L, 3, 1, -5);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 
   enable_events_after_callback_handling(lj_L);
@@ -157,11 +159,12 @@ static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
 
   disable_events_before_callback_handling(lj_L);
 
+  lua_pushcfunction(L, lua_print_traceback);
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
   new_jobject(L, thread);
   new_jmethod_id(L, method_id);
   lua_pushinteger(L, location);
-  lua_call(L, 3, 1);
+  lua_pcall(L, 3, 1, -5);
   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
 
   enable_events_after_callback_handling(lj_L);
