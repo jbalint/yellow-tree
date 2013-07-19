@@ -6,6 +6,7 @@ local jarray = {
 
 -- ============================================================
 function jarray.create(object_raw)
+   assert(object_raw)
    local self = jobject.create(object_raw) -- call superclass ctor
    setmetatable(self, jarray)
    return self

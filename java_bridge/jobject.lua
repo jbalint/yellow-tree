@@ -2,6 +2,7 @@ local jobject = { classname = "jobject" }
 
 -- ============================================================
 function jobject.create(object_raw)
+   assert(object_raw)
    local self = {}
    self.object_raw = object_raw
    local getClassMethod_raw = lj_get_method_id(lj_find_class("java/lang/Object"),

@@ -3,6 +3,7 @@ local jclass = { classname = "jclass" }
 -- ============================================================
 -- create a new jclass.
 function jclass.create(object_raw)
+   assert(object_raw)
    -- name is a transient and cached property in java.lang.Class, don't access it directly
    -- c.f. Class.java source
    local getNameMethod_raw = lj_get_method_id(lj_find_class("java/lang/Class"),

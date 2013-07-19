@@ -17,17 +17,19 @@ static int lj_get_frame_count(lua_State *L)
 static int lj_get_stack_frame(lua_State *L)
 {
   jvmtiFrameInfo fi;
-  jint count;
+  jint count = 0;
   jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
   int frame_num = luaL_checkint(L, 2);
   lua_pop(L, 2);
 
   /* get stack frame info */
   lj_err = (*current_jvmti())->GetStackTrace(current_jvmti(), thread, frame_num - 1, 1, &fi, &count);
-  lj_check_jvmti_error(L);
-  if (count == 0) {
-    return 0;
+  if (lj_err == JVMTI_ERROR_ILLEGAL_ARGUMENT ||
+	  count == 0) {
+	lua_pushnil(L);
+    return 1;
   }
+  lj_check_jvmti_error(L);
   assert(count == 1);
 
   lua_newtable(L);
@@ -35,7 +37,7 @@ static int lj_get_stack_frame(lua_State *L)
   lua_pushinteger(L, fi.location);
   lua_setfield(L, -2, "location");
   new_jmethod_id(L, fi.method);
-  lua_setfield(L, -2, "method_id");
+  lua_setfield(L, -2, "method_id_raw");
   lua_pushinteger(L, frame_num);
   lua_setfield(L, -2, "depth");
 

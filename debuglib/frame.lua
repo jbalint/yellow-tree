@@ -1,18 +1,10 @@
 local Frame = {}
 
 -- ============================================================
-function Frame.get_frame(thread, depth)
-   assert(thread)
-   -- returned object has members, "location", "method_id" (raw), and "depth"
-   local frame = thread:get_raw_frame(depth)
-   if not frame then
-	  return nil
-   end
-   frame.thread = thread
-   frame.method_id = jmethod_id.from_raw_method_id(frame.method_id)
-
-   setmetatable(frame, Frame)
-   return frame
+function Frame.create(self, thread)
+   self.method_id = jmethod_id.from_raw_method_id(self.method_id_raw)
+   setmetatable(self, Frame)
+   return self
 end
 
 -- ============================================================

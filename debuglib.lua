@@ -126,38 +126,19 @@ end
 -- ============================================================
 -- Print stack trace
 -- ============================================================
-stack_mt = {}
-function stack_mt:__tostring()
-   if table.maxn(self) == 0 then
+function stack()
+   if #current_thread().frames == 0 then
       return("No code running")
    end
 
-   local disp = ""
-   for i, f in ipairs(self) do
-      -- TODO limit frame count to prevent printing unreasonably large stacks
-      if depth == f.depth then
-         disp = disp .. "*"
-      end
-      disp = string.format("%s%s\n", disp, f)
-   end
-   return(disp)
-end
-function stack()
-   local stack = {}
-   setmetatable(stack, stack_mt)
-   local frame_count = current_thread().frame_count
-
-   for i = 1, frame_count do
-      table.insert(stack, Frame.get_frame(current_thread(), i))
-   end
-   return stack
+   return current_thread().frames
 end
 
 -- ============================================================
 -- Print local variables in current stack frame
 -- ============================================================
 function locals()
-   local frame = Frame.get_frame(current_thread(), depth)
+   local frame = current_thread().frames[depth]
    local var_table = frame.method_id.local_variable_table
    if var_table == nil then
       dbgio:print("No local variable table")
@@ -184,7 +165,7 @@ function next_line(num)
    num = num or 1
 
    -- find location of next line
-   local f = Frame.get_frame(current_thread(), depth)
+   local f = current_thread().frames[depth]
    local line_nums = f.method_id.line_number_table
    for idx, ln in ipairs(line_nums) do
       if f.location < ln.location then
@@ -231,9 +212,10 @@ end
 function frame(num)
    num = num or 1
 
-   local f = Frame.get_frame(current_thread(), num)
+   local f = current_thread().frames[num]
    if not f then
       dbgio:print("Invalid frame")
+      return nil
    end
 
    depth = num
@@ -373,7 +355,7 @@ function cb_breakpoint(thread_raw, method_id_raw, location)
 
    depth = 1
    dbgio:print()
-   dbgio:print(Frame.get_frame(current_thread(), 1))
+   dbgio:print(current_thread().frames[1])
    local need_to_handle_events = true
    -- run handler if present and resume thread if requested
    if bp.handler then
@@ -403,7 +385,7 @@ function cb_method_exit(thread_raw, method_id_raw, was_popped_by_exception, retu
    debug_lock:lock()
    debug_thread = current_thread()
 
-   dbgio:print(Frame.get_frame(current_thread(), depth))
+   dbgio:print(current_thread().frames[depth])
    debug_event:broadcast_without_lock()
    debug_thread:handle_events()
 
@@ -421,10 +403,10 @@ function cb_single_step(thread_raw, method_id_raw, location)
       -- single stepped into a different method, disable single steps until
       -- it exits
       lj_clear_jvmti_callback("single_step")
-      local previous_frame_count = current_thread().frame_count
+      local previous_frame_count = #current_thread().frames
       local check_nested_method_return = function(thread_raw, method_id_raw, was_popped_by_exception, return_value)
          local thread = jthread.create(thread_raw)
-         if thread.frame_count == previous_frame_count then
+         if #thread.frames == previous_frame_count then
             lj_set_jvmti_callback("method_exit", cb_method_exit)
             lj_set_jvmti_callback("single_step", cb_single_step)
          end
@@ -436,7 +418,7 @@ function cb_single_step(thread_raw, method_id_raw, location)
       lj_clear_jvmti_callback("single_step")
       next_line_location = nil
       next_line_method_id = nil
-      dbgio:print(Frame.get_frame(current_thread(), depth))
+      dbgio:print(current_thread().frames[depth])
    	  debug_event:broadcast_without_lock()
 	  debug_thread:handle_events()
    end
@@ -512,7 +494,7 @@ end
 -- Find a local variable
 -- Return "value, k" if found, "nil, nil" otherwise
 function get_local_variable(k)
-   local frame = Frame.get_frame(current_thread(), depth)
+   local frame = current_thread().frames[depth]
    if not frame or
       not frame.method_id.local_variable_table or
       not frame.method_id.local_variable_table[k] then
@@ -528,6 +510,10 @@ function init_locals_environment()
    local mt = getmetatable(_ENV) or (setmetatable(_ENV, {}) and getmetatable(_ENV))
    mt.__index = function(t, k)
 	  if not k then return nil end
+
+      if rawget(t, k) then
+         return rawget(t, k)
+      end
 
       -- find a local variable
       local lv, name = get_local_variable(k)
