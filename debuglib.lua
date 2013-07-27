@@ -322,7 +322,7 @@ function bc(num)
       return
    end
    local desc = string.format("%s", b)
-   lj_clear_breakpoint(b.method_id, b.location)
+   lj_clear_breakpoint(b.method_id.method_id_raw, b.location)
    table.remove(breakpoints, num)
    dbgio:print("cleared ", desc)
 end
