@@ -26,6 +26,8 @@ static struct {
   int cb_method_entry_ref;
   int cb_method_exit_ref;
   int cb_single_step_ref;
+  int cb_exception_throw_ref;
+  int cb_exception_catch_ref;
 } lj_jvmti_callbacks;
 
 void lj_init_jvmti_event()
@@ -35,6 +37,9 @@ void lj_init_jvmti_event()
   lj_jvmti_callbacks.cb_method_entry_ref = LUA_NOREF;
   lj_jvmti_callbacks.cb_method_exit_ref = LUA_NOREF;
   lj_jvmti_callbacks.cb_single_step_ref = LUA_NOREF;
+
+  lj_jvmti_callbacks.cb_exception_throw_ref = LUA_NOREF;
+  lj_jvmti_callbacks.cb_exception_catch_ref = LUA_NOREF;
 }
 
 static void disable_events_before_callback_handling(lua_State *L)
@@ -170,6 +175,37 @@ static void JNICALL cb_single_step(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
   enable_events_after_callback_handling(lj_L);
 }
 
+static void JNICALL cb_exception_throw(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread, jmethodID method_id,
+									   jlocation location, jobject exception,
+									   jmethodID catch_method, jlocation catch_location)
+{
+  int ref = lj_jvmti_callbacks.cb_exception_throw_ref;
+  lua_State *L;
+
+  if (ref == LUA_NOREF)
+	return;
+
+  L = lua_newthread(lj_L);
+
+  lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
+  assert(lj_current_thread);
+
+  disable_events_before_callback_handling(lj_L);
+
+  lua_pushcfunction(L, lua_print_traceback);
+  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+  new_jobject(L, thread);
+  new_jmethod_id(L, method_id);
+  lua_pushinteger(L, location);
+  new_jobject(L, exception);
+  new_jmethod_id(L, catch_method);
+  lua_pushinteger(L, catch_location);
+  lua_pcall(L, 6, 0, -8);
+  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
+  
+  enable_events_after_callback_handling(lj_L);
+}
+
 static void get_jvmti_callback_pointers(const char *callback,
 										void ***jvmti_function_ptr_ptr,
 										void **lj_function_ptr, 
@@ -215,6 +251,12 @@ static void get_jvmti_callback_pointers(const char *callback,
     *lj_function_ptr = cb_single_step;
     *ref_ptr = &lj_jvmti_callbacks.cb_single_step_ref;
   }
+  else if (!strcmp(callback, "exception_throw"))
+  {
+	*jvmti_function_ptr_ptr = (void **)&evCbs->Exception;
+	*lj_function_ptr = cb_exception_throw;
+	*ref_ptr = &lj_jvmti_callbacks.cb_exception_throw_ref;
+  }
 }
 
 int lj_set_jvmti_callback(lua_State *L)
@@ -244,9 +286,14 @@ int lj_set_jvmti_callback(lua_State *L)
     lj_err = EV_ENABLET(SINGLE_STEP, get_current_java_thread());
   else if (!strcmp(callback, "method_exit"))
 	lj_err = EV_ENABLET(METHOD_EXIT, get_current_java_thread());
+  else if (!strcmp(callback, "exception_throw"))
+	lj_err = EV_ENABLET(EXCEPTION, get_current_java_thread());
   lj_check_jvmti_error(L);
 
   get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, &lj_callback_ptr, &ref_ptr);
+  if (!ref_ptr)
+	(void)luaL_error(L, "Unknown or unmapped callback '%s'\n", callback);
+
   *jvmti_callback_ptr = lj_callback_ptr;
   *ref_ptr = ref;
 
@@ -273,6 +320,8 @@ int lj_clear_jvmti_callback(lua_State *L)
     EV_DISABLET(SINGLE_STEP, get_current_java_thread());
   else if (!strcmp(callback, "method_exit"))
 	EV_DISABLET(METHOD_EXIT, get_current_java_thread());
+  else if (!strcmp(callback, "exception_throw"))
+	EV_DISABLET(EXCEPTION, get_current_java_thread());
   lj_check_jvmti_error(L);
 
   get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, NULL, &ref_ptr);
