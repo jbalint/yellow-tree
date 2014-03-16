@@ -12,6 +12,26 @@ function jobject.create(object_raw)
    return self
 end
 
+--- Is the argument a jobject?
+-- @param obj A value to test
+function jobject.is_jobject(obj)
+   if obj == nil then
+	  return false
+   end
+   local mt = getmetatable(obj)
+   -- knowledge of subclasses, ew
+   return mt and (mt.classname == "jobject" or
+					 mt.classname == "jthread" or
+					 mt.classname == "jclass" or
+					 mt.classname == "jarray")
+end
+
+function jobject.coerce(val)
+   if type(val) == "string" then
+	  return java.lang.String.new(val)
+   end
+end
+
 -- ============================================================
 function jobject:__tostring()
    return string.format("jobject@%s: %s",
