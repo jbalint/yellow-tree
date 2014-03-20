@@ -91,10 +91,8 @@ function start_cmd()
       end
       local chunk = load(cmd)
 	  if debug_thread == nil then
-		 local success, m2 = pcall(chunk)
-		 if not success then
-			dbgio:print("Error: " .. m2)
-		 elseif m2 then
+		 local success, m2 = xpcall(chunk, x)
+		 if success then
 			dbgio:print(m2)
 		 end
 	  else
@@ -233,7 +231,7 @@ function bp(method, line_num)
    if type(method) == "string" then
       b.method_id = jmethod_id.find(method)
       if not b.method_id then
-         error("Method not found")
+         error("Cannot find method to set breakpoint")
       end
    elseif type(method) == "userdata" then
       b.method_id = method
@@ -513,6 +511,10 @@ function init_locals_environment()
 
       if rawget(t, k) then
          return rawget(t, k)
+      end
+
+      if k == "this" then
+         return current_thread().frames[depth]:local_slot(0, "Ljava/lang/Object;")
       end
 
       -- find a local variable
