@@ -3,7 +3,17 @@
 
 static int lj_force_early_return_object(lua_State *L)
 {
-  assert(0);// TODO
+  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
+  jobject ret_val = NULL;
+  
+  if (lua_type(L, 2) != LUA_TNIL)
+	ret_val = *(jobject *)luaL_checkudata(L, 2, "jobject");
+
+  lj_err = (*current_jvmti())->ForceEarlyReturnObject(current_jvmti(), thread, ret_val);
+  lj_check_jvmti_error(L);
+
+  lua_pop(L, 2);
+
   return 0;
 }
 
