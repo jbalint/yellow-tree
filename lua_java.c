@@ -728,6 +728,78 @@ static int lj_get_array_element(lua_State *L)
   return 1;
 }
 
+static int lj_set_array_element(lua_State *L)
+{
+  JNIEnv *jni = current_jni();
+  jobject array = *(jobject *) luaL_checkudata(L, 1, "jobject");
+  const char *class_name = luaL_checkstring(L, 2);
+  jsize index = luaL_checkinteger(L, 3) - 1;
+  jvalue val;
+  int val_num = 4;
+
+  assert(*class_name == '[');
+
+  switch (class_name[1])
+  {
+  case 'L':
+  case '[':
+	if (lua_isnil(L, val_num)) {
+	  val.l = NULL;
+	} else {
+	  val.l = *(jobject *) luaL_checkudata(L, val_num, "jobject");
+	}
+	(*jni)->SetObjectArrayElement(jni, array, index, val.l);
+	EXCEPTION_CHECK(jni);
+	break;
+	/* TODO rest */
+  case 'Z':
+	luaL_checktype(L, val_num, LUA_TBOOLEAN);
+	val.z = lua_toboolean(L, val_num);
+	(*jni)->SetBooleanArrayRegion(jni, array, index, 1, &val.z);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'B':
+	val.b = luaL_checkinteger(L, val_num);
+	(*jni)->SetByteArrayRegion(jni, array, index, 1, &val.b);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'C':
+	val.c = luaL_checkinteger(L, val_num);
+	(*jni)->SetCharArrayRegion(jni, array, index, 1, &val.c);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'S':
+	val.s = luaL_checkinteger(L, val_num);
+	(*jni)->SetShortArrayRegion(jni, array, index, 1, &val.s);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'I':
+	val.i = luaL_checkinteger(L, val_num);
+	(*jni)->SetIntArrayRegion(jni, array, index, 1, &val.i);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'J':
+	val.j = luaL_checkinteger(L, val_num);
+	(*jni)->SetLongArrayRegion(jni, array, index, 1, &val.j);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'F':
+	val.f = luaL_checknumber(L, val_num);
+	(*jni)->SetFloatArrayRegion(jni, array, index, 1, &val.f);
+	EXCEPTION_CHECK(jni);
+	break;
+  case 'D':
+	val.d = luaL_checknumber(L, val_num);
+	(*jni)->SetDoubleArrayRegion(jni, array, index, 1, &val.d);
+	EXCEPTION_CHECK(jni);
+	break;
+  }
+
+  lua_pop(L, 4);
+
+  return 0;
+}
+
 static int lj_new_global_ref(lua_State *L)
 {
   JNIEnv *jni = current_jni();
@@ -796,6 +868,7 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 
   lua_register(L, "lj_get_array_length",           lj_get_array_length);
   lua_register(L, "lj_get_array_element",          lj_get_array_element);
+  lua_register(L, "lj_set_array_element",          lj_set_array_element);
 
   lua_register(L, "lj_new_global_ref",             lj_new_global_ref);
   lua_register(L, "lj_delete_global_ref",          lj_delete_global_ref);

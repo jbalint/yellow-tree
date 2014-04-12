@@ -26,10 +26,45 @@ function jobject.is_jobject(obj)
 					 mt.classname == "jarray")
 end
 
-function jobject.coerce(val)
-   if type(val) == "string" then
-	  return java.lang.String.new(val)
+-- ============================================================
+
+-- map of Java primitive types to required Lua types
+local raw_passthrough = {
+   Z = "boolean",
+   B = "number",
+   C = "number",
+   S = "number",
+   I = "number",
+   J = "number",
+   F = "number",
+   D = "number"
+}
+
+function jobject.coerce(val, target_type)
+   local vtype = type(val)
+
+   print(string.format("Coercing '%s' to %s", val, target_type))
+   if raw_passthrough[target_type] == vtype then
+	  return val
    end
+
+   if jobject.is_jobject(val) then -- TODO check isAssignableFrom
+	  return val
+   elseif target_type == "Ljava/lang/String;" and not jobject.is_jobject(val) then
+	  return java.lang.String.new(tostring(val))
+   elseif target_type == "Ljava/lang/Integer;" and vtype == "number" then
+	  return java.lang.Integer.new(math.floor(val))
+   elseif target_type == "Ljava/lang/Object;" then
+	  if vtype == "string" then
+		 return java.lang.String.new(val)
+		 -- TODO test this
+	  elseif vtype == "number" then
+		 return java.lang.Double.new(val)
+	  end
+   elseif raw_passthrough[target_type] == "number" then
+	  return tonumber(val)
+   end
+   error("Coercion to jobject failed")
 end
 
 -- ============================================================

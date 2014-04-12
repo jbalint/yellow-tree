@@ -89,6 +89,7 @@ end
 -- ============================================================
 function jclass:init_internal(class_name)
    self.name = class_name
+   self.internal_name = self.name:gsub("%.", "/")
    if class_name ~= "java.lang.Class" then
 	  self.sourcefile = lj_get_source_filename(self.object_raw)
    end
