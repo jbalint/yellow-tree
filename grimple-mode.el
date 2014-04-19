@@ -7,12 +7,20 @@
 (setq grimple-font-lock-keywords
 	  ;; not necessarily exhaustive
 	  ;; not sure if while, try, etc are keywords in grimple
-  '(("\\b\\(break\\|case\\|catch\\|class\\|do\\|extends\\|finally\\|for\\|from\\|goto\\|if\\|implements\\|import\\|new\\|package\\|private\\|protected\\|public\\|return\\|static\\|staticinvoke\\|switch\\|synchronized\\|throw\\|throws\\|to\\|try\\|with\\|while\\)\\b" . font-lock-function-name-face)
-	;; TODO labels, strings
-	("\\b\\(boolean\\|char\\|double\\|float\\|int\\|long\\|short\\|void\\)\\b" . font-lock-type-face)
-	("\\b\\(null\\)\\b" . font-lock-constant-face)
-	("\\blabel[[:digit:]]+\\b" . font-lock-constant-face)
-	("com\\.*\b" . font-lock-type-face)))
+	  `((,(concat "\\b" (regexp-opt '("break" "case" "catch" "class" "do" "extends"
+									  "final" "finally" "for" "from" "goto" "if"
+									  "implements" "import" "new" "package" "private"
+									  "protected" "public" "return" "static"
+									  "staticinvoke" "switch" "synchronized" "throw"
+									  "throws" "to" "transient" "try" "with"
+									  "while")) "\\b")
+		 . font-lock-function-name-face)
+		;; TODO labels, strings
+		(,(concat "\\b" (regexp-opt '("boolean" "char" "double" "float" "int" "long"
+									  "short" "void")) "\\b")
+		 . font-lock-type-face)
+		("\\b\\(null\\)\\b" . font-lock-constant-face)
+		("\\blabel[[:digit:]]+\\b" . font-lock-constant-face)))
 
 ;; copied from archive-tmpdir (arc-mode.el)
 (defcustom grimple-tmpdir
@@ -27,8 +35,23 @@
 
 (put 'grimple-class-mode 'mode-class 'special)
 
+(defun grimple-class-name-of-file-process-filter (proc output)
+  ;; TODO does not handle chunking properly
+  ;; TODO does not handle Java 5 version of javap which doesn't give warning
+  (if (string-match "contains\\s-+\\([[:alnum:]\\.]+\\)\\b" output)
+	  (match-string 1 output)))
+
+;; Find the name of the class contained in the given file by executing
+;; `javap'. `javap' will not discriminate if the file is not in the
+;; correct package as determined by the classpath. In Java 6+ a
+;; warning will be printed containing the complete class name +
+;; package.
 (defun grimple-class-name-of-file (file-name)
-  "")
+  "Find the name of the class contained in the given file"
+  (let ((unqual-class-name (file-name-base file-name)))
+	(set-process-filter
+	 (start-process "grimple-class-finder" nil "javap" "-cp" (file-name-directory file-name) unqual-class-name)
+	 'grimple-class-name-of-file-process-filter)))
 
 (defun grimple-decompile-class (file-name)
   (let* ((class-name (replace-regexp-in-string "pattern" "replacement" file-name))
