@@ -10,9 +10,9 @@
 	  `((,(concat "\\b" (regexp-opt '("break" "case" "catch" "class" "do" "extends"
 									  "final" "finally" "for" "from" "goto" "if"
 									  "implements" "import" "new" "package" "private"
-									  "protected" "public" "return" "static"
+									  "protected" "public" "return" "specialinvoke" "static"
 									  "staticinvoke" "switch" "synchronized" "throw"
-									  "throws" "to" "transient" "try" "with"
+									  "throws" "to" "transient" "try" "virtualinvoke" "with"
 									  "while")) "\\b")
 		 . font-lock-function-name-face)
 		;; TODO labels, strings
@@ -28,7 +28,7 @@
   ;; to create a directory.
   (make-temp-name
    (expand-file-name ;;(if (eq system-type 'ms-dos) "ar" "archive.tmp")
-		     temporary-file-directory))
+	temporary-file-directory))
   "Directory for temporary files made by `grimple-mode.el'."
   :type 'directory
   :group 'grimple)
@@ -45,11 +45,18 @@
   :type '(set (const 'directory))
   :group 'grimple)
 
+(defcustom grimple-decompile-format
+  ;;"grimp"
+  "jimple"
+  "Soot format used to de/re-compile code."
+  :type 'string
+  :group 'grimple)
+
 (setq grimple-soot-jar
 	  "/home/jbalint/Downloads/soot-2.5.0.jar")
 
-(setq grimple-soot-classpath
-	  '("/home/jbalint/sw/stardog-2.1.3/expand"))
+(setq grimple-soot-classpath nil)
+	  ;;'("/home/jbalint/sw/stardog-2.1.3/expand"))
 
 (put 'grimple-class-mode 'mode-class 'special)
 
@@ -61,31 +68,65 @@
 (defun grimple-classname-of-file (file-name)
   "Find the name of the class contained in the given file"
   (let* ((unqual-classname (file-name-base file-name))
-		 (command (mapconcat 'identity `("javap" "-cp" ,(file-name-directory file-name) ,unqual-classname) " "))
+		 (command (mapconcat 'identity
+							 `("javap" "-cp" ,(file-name-directory file-name)
+							   ,unqual-classname) " "))
 		 (output (shell-command-to-string command)))
 	(if (string-match "contains\\s-+\\([[:alnum:]\\.]+\\)\\b" output)
 		(match-string 1 output))))
 
-(defun grimple-package-of-class (classname)
+(defun grimple-rt-jar-path ()
   ""
+  (concat (getenv "JAVA_HOME") "/jre/lib/rt.jar"))
+
+(defun grimple-base-classpath (&rest extras)
+  ""
+  (mapconcat 'identity (append (list (grimple-rt-jar-path) grimple-tmpdir) grimple-soot-classpath extras) ":"))
+
+(defun grimple-package-of-class (classname)
+  "Separate the package from the given fully qualified classname."
   (if (string-match "\\(.*\\)\\.[[:alnum:]]+" classname)
 	  (match-string 1 classname)))
 
-(defun grimple-decompile-class (classpath-in classname outdir)
+(defun grimple-build-args (extra-classpath &rest inargs)
   ""
-  (let* ((rt-jar (concat (getenv "JAVA_HOME") "/jre/lib/rt.jar"))
-		 (classpath (mapconcat 'identity (append `(,rt-jar ,classpath-in) grimple-soot-classpath) ":"))
-		 (args `("-jar" ,grimple-soot-jar "-cp" ,classpath "-f" "grimple" "-output-dir" ,outdir ,classname)))
-	(apply 'call-process (append '("java" nil "**nil" t) args))))
+  (let ((args (or inargs '())))
+	(append `("-jar" ,grimple-soot-jar "-cp" ,(grimple-base-classpath extra-classpath)) args)))
 
-(defun grimple-replace-buffer-contents-with-decompiled (file-name)
-  (let* ((classname (grimple-classname-of-file file-name))
-		 (package-dir (replace-regexp-in-string "\\." "/" (grimple-package-of-class classname)))
-		 (classpath-for-file (replace-regexp-in-string (concat "/" package-dir "/") "" (file-name-directory file-name)))
-		 (grimple-file (concat grimple-tmpdir "/" classname ".grimple")))
-	(grimple-decompile-class classpath-for-file classname grimple-tmpdir)
-	(erase-buffer)
-	(insert-file-contents grimple-file)))
+(defun grimple-decompile-class (classpath-in classname outdir)
+  "Decompile."
+  (let ((args (grimple-build-args classpath-in "-f" grimple-decompile-format
+								  "-output-dir" outdir classname)))
+	(if (< 0 (apply 'call-process (append '("java" nil "*soot-decompile*" t) args)))
+		(error "Cannot decompile"))))
+
+(defun grimple-save-class ()
+  ""
+  (let ((args (grimple-build-args nil "-src-prec" "J" "-output-dir" grimple-base-path grimple-classname)))
+	(write-region nil nil grimple-decompiled-file)
+	(if (< 0 (apply 'call-process (append '("java" nil "*soot-recompile*" t) args)))
+		(error "Cannot save")
+	  t)))
+
+(defun grimple-replace-buffer-contents-with-decompiled ()
+  ""
+  (grimple-decompile-class grimple-base-path grimple-classname grimple-tmpdir)
+  (erase-buffer)
+  (insert-file-contents grimple-decompiled-file)
+  (set-buffer-modified-p nil))
+
+(defun grimple-setup-class-mode ()
+  ""
+  (set (make-local-variable 'grimple-classname)
+	   (grimple-classname-of-file buffer-file-name))
+  (set (make-local-variable 'grimple-base-path)
+	   (let ((package-dir (replace-regexp-in-string "\\." "/" (grimple-package-of-class grimple-classname))))
+		 (replace-regexp-in-string (concat "/" package-dir "/") "" (file-name-directory buffer-file-name))))
+  (set (make-local-variable 'grimple-decompiled-file)
+	   (concat grimple-tmpdir "/" grimple-classname "." grimple-decompile-format))
+  (set (make-local-variable 'write-file-functions)
+	   'grimple-save-class)
+  (grimple-replace-buffer-contents-with-decompiled))
 
 (defun grimple-mode ()
   (interactive)
@@ -93,7 +134,9 @@
   (setq major-mode 'grimple-mode)
   (setq mode-name "Grimple")
   (if (string-match "\\.class$" buffer-file-name)
-	  (grimple-replace-buffer-contents-with-decompiled buffer-file-name))
+	  (grimple-setup-class-mode))
+  (auto-save-mode 0)
+										;(setq file-precious-flag t)
   (set (make-local-variable 'font-lock-defaults)
 	   '(grimple-font-lock-keywords nil nil nil nil))
   (font-lock-mode nil)
