@@ -1,9 +1,3 @@
-;; This buffer is for notes you don't want to save, and for Lisp evaluation.
-;; If you want to create a file, visit that file with C-x C-f,
-;; then enter the text in that file's own buffer.
-
-
-
 (setq grimple-font-lock-keywords
 	  ;; not necessarily exhaustive
 	  ;; not sure if while, try, etc are keywords in grimple
@@ -93,20 +87,35 @@
   (let ((args (or inargs '())))
 	(append `("-jar" ,grimple-soot-jar "-cp" ,(grimple-base-classpath extra-classpath)) args)))
 
+(defun grimple-soot-classpath-add-jardir (dir)
+  "Add a directory full of jars to `grimple-soot-classpath'."
+  (interactive)
+  (setq grimple-soot-classpath
+		(append grimple-soot-classpath
+				(directory-files dir t "jar$"))))
+
 (defun grimple-decompile-class (classpath-in classname outdir)
   "Decompile."
   (let ((args (grimple-build-args classpath-in "-f" grimple-decompile-format
-								  "-output-dir" outdir classname)))
-	(if (< 0 (apply 'call-process (append '("java" nil "*soot-decompile*" t) args)))
-		(error "Cannot decompile"))))
+								  "-output-dir" outdir classname))
+		(buf (get-buffer-create "*soot-decompile*")))
+	(with-current-buffer buf
+	  (insert (format "\n\njava soot-decompile args: %s" args)))
+	;; TODO would be nice to use the buf variable here instead of the buffer name
+	(unless (= 0 (apply 'call-process (append '("java" nil "*soot-decompile*" t) args)))
+	  (switch-to-buffer buf)
+	  (error "Cannot decompile"))))
 
 (defun grimple-save-class ()
-  ""
-  (let ((args (grimple-build-args nil "-src-prec" "J" "-output-dir" grimple-base-path grimple-classname)))
+  "Save (recompile) a class."
+  (let ((args (grimple-build-args nil "-src-prec" "J" "-output-dir" grimple-base-path grimple-classname))
+		(buf (get-buffer-create "*soot-recompile*")))
 	(write-region nil nil grimple-decompiled-file)
-	(if (< 0 (apply 'call-process (append '("java" nil "*soot-recompile*" t) args)))
-		(error "Cannot save")
-	  t)))
+	(with-current-buffer buf
+	  (insert (format "\n\njava soot-recompile args: %s\n" args)))
+	(unless (= 0 (apply 'call-process (append '("java" nil "*soot-recompile*" t) args)))
+	  (switch-to-buffer buf)
+	  (error "Cannot save"))))
 
 (defun grimple-replace-buffer-contents-with-decompiled ()
   ""
@@ -129,6 +138,7 @@
   (grimple-replace-buffer-contents-with-decompiled))
 
 (defun grimple-mode ()
+  ""
   (interactive)
   (kill-all-local-variables)
   (setq major-mode 'grimple-mode)
