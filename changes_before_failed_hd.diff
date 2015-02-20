@@ -1,0 +1,571 @@
+diff --git a/debuglib.lua b/debuglib.lua
+index a2d291f..9c8f2ae 100644
+--- a/debuglib.lua
++++ b/debuglib.lua
+@@ -228,12 +228,14 @@ function bp(method, line_num)
+    local b = {}
+    b.line_num = line_num or 0
+ 
++   -- TODO don't duplicate from below
+    if type(method) == "string" then
+       b.method_id = jmethod_id.find(method)
+       if not b.method_id then
+          error("Cannot find method to set breakpoint")
+       end
+-   elseif type(method) == "userdata" then
++   elseif type(method) == "table" then
++      -- TODO get getmetatable(table).classname == "jmethod_id"
+       b.method_id = method
+    else
+       error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a method_id object")
+@@ -244,11 +246,33 @@ function bp(method, line_num)
+       b.location = 0
+    end
+ 
++   return bp_loc(method, b.location)
++end
++
++function bp_loc(method, location)
++   local b = {}
++   b.location = location or 0
++
++   if type(method) == "string" then
++      b.method_id = jmethod_id.find(method)
++      if not b.method_id then
++         error("Cannot find method to set breakpoint")
++      end
++   elseif type(method) == "table" then
++      b.method_id = method
++   else
++      error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a method_id object")
++   end
++
++   if b.location == -1 then
++      b.location = b.method_id:get_last_bci()
++   end
++
+    -- make sure bp doesn't already exist
+    for idx, bp in ipairs(breakpoints) do
+       if bp.method_id == b.method_id and bp.location == b.location then
+          dbgio:print("Breakpoint already exists")
+-         return
++         --return
+       end
+    end
+ 
+@@ -345,6 +369,12 @@ function cb_breakpoint(thread_raw, method_id_raw, location)
+    local bp
+    for idx, v in pairs(breakpoints) do
+       -- TODO and test location
++      -- TODO
++      -- TODO
++      -- TODO
++      -- TODO
++      -- TODO
++      -- TODO
+       if v.method_id == method_id then
+          bp = v
+       end
+diff --git a/debuglib/frame.lua b/debuglib/frame.lua
+index e5a73e3..c40e23c 100644
+--- a/debuglib/frame.lua
++++ b/debuglib/frame.lua
+@@ -49,13 +49,14 @@ function Frame:force_return(ret_val)
+ 
+    if self.method_id.ret == "V" then
+ 	  lj_force_early_return_void(self.thread.object_raw)
+-   elseif self.method_id.ret:sub(-1) == ";" and ret_val and jobject.is_jobject(ret_val) then
+-	  lj_force_early_return_object(self.thread.object_raw, ret_val.object_raw)
+-   -- TODO coersion to java objects should be re-usable
+-	  -- TODO additional coersion here
+-   elseif self.method_id.ret == "Ljava/lang/String;" then
+-	  lj_force_early_return_object(self.thread.object_raw,
+-								   java.lang.String.new(tostring(ret_val)).object_raw)
++   elseif self.method_id.ret:sub(-1) == ";" then
++	  ret_val = jobject.coerce(ret_val, self.method_id.ret)
++	  -- TODO ok for nil handling?
++	  if ret_val then
++		 lj_force_early_return_object(self.thread.object_raw, ret_val.object_raw)
++	  else
++		 lj_force_early_return_object(self.thread.object_raw, nil)
++	  end
+    else -- TODO handle primitive return types
+ 	  error("Unhandled case")
+    end
+diff --git a/grimple-mode.el b/grimple-mode.el
+index 7e6e70a..4610459 100644
+--- a/grimple-mode.el
++++ b/grimple-mode.el
+@@ -64,9 +64,11 @@
+   (let* ((unqual-classname (file-name-base file-name))
+ 		 (command (mapconcat 'identity
+ 							 `("javap" "-cp" ,(file-name-directory file-name)
+-							   ,unqual-classname) " "))
++							   ,(replace-in-string unqual-classname "\\$" "\\\\$")) " "))
+ 		 (output (shell-command-to-string command)))
+-	(if (string-match "contains\\s-+\\([[:alnum:]\\.]+\\)\\b" output)
++	(if (string-prefix-p "Error" output)
++		(error "Cannot determine class name"))
++	(if (string-match "contains\\s-+\\([[:alnum:]\\.\\$]+\\)\\b" output)
+ 		(match-string 1 output))))
+ 
+ (defun grimple-rt-jar-path ()
+@@ -108,14 +110,15 @@
+ 
+ (defun grimple-save-class ()
+   "Save (recompile) a class."
+-  (let ((args (grimple-build-args nil "-src-prec" "J" "-output-dir" grimple-base-path grimple-classname))
++  (let ((args (grimple-build-args grimple-base-path "-src-prec" "J" "-output-dir" grimple-base-path grimple-classname))
+ 		(buf (get-buffer-create "*soot-recompile*")))
+ 	(write-region nil nil grimple-decompiled-file)
+ 	(with-current-buffer buf
+ 	  (insert (format "\n\njava soot-recompile args: %s\n" args)))
+ 	(unless (= 0 (apply 'call-process (append '("java" nil "*soot-recompile*" t) args)))
+ 	  (switch-to-buffer buf)
+-	  (error "Cannot save"))))
++	  (error "Cannot save"))
++	t))
+ 
+ (defun grimple-replace-buffer-contents-with-decompiled ()
+   ""
+diff --git a/java_bridge/jmethod_id.lua b/java_bridge/jmethod_id.lua
+index 570a396..e5620ed 100644
+--- a/java_bridge/jmethod_id.lua
++++ b/java_bridge/jmethod_id.lua
+@@ -91,6 +91,11 @@ function jmethod_id:get_preferred_ret_type()
+    return ret
+ end
+ 
++function jmethod_id:get_last_bci()
++   local first_bci, last_bci = lj_get_method_location(self.method_id_raw)
++   return last_bci
++end
++
+ -- ============================================================
+ function jmethod_id:__call(object_raw, argCount, ...)
+    local ret_val = lj_call_method(object_raw, self.method_id_raw,
+diff --git a/java_bridge/jobject.lua b/java_bridge/jobject.lua
+index 8247b80..3f8c480 100644
+--- a/java_bridge/jobject.lua
++++ b/java_bridge/jobject.lua
+@@ -43,7 +43,6 @@ local raw_passthrough = {
+ function jobject.coerce(val, target_type)
+    local vtype = type(val)
+ 
+-   print(string.format("Coercing '%s' to %s", val, target_type))
+    if raw_passthrough[target_type] == vtype then
+ 	  return val
+    end
+@@ -57,7 +56,6 @@ function jobject.coerce(val, target_type)
+    elseif target_type == "Ljava/lang/Object;" then
+ 	  if vtype == "string" then
+ 		 return java.lang.String.new(val)
+-		 -- TODO test this
+ 	  elseif vtype == "number" then
+ 		 return java.lang.Double.new(val)
+ 	  end
+diff --git a/java_bridge/jthread.lua b/java_bridge/jthread.lua
+index 7a3fbc2..b3b7ea9 100644
+--- a/java_bridge/jthread.lua
++++ b/java_bridge/jthread.lua
+@@ -44,11 +44,13 @@ function jthread:handle_events()
+ 	  if event.type == Event.TYPE_RESUME then
+ 		 return
+ 	  elseif event.type == Event.TYPE_COMMAND then
++		 local x = function (err)
++			dbgio:write("Error: ")
++			dbgio:print(debug.traceback(err, 2))
++		 end
+ 		 -- TODO copied from start_cmd()
+-		 local success, m2 = pcall(event.data.chunk)
+-		 if not success then
+-			dbgio:print("Error: " .. m2)
+-		 elseif m2 then
++		 local success, m2 = xpcall(event.data.chunk, x)
++		 if success then
+ 			dbgio:print(m2)
+ 		 end
+ 	  end
+@@ -57,7 +59,7 @@ end
+ 
+ -- ============================================================
+ -- inner class to allow accessing frames as an array
+-jthread.frames = {}
++jthread.frames = { classname = "jthread.frames" }
+ -- ============================================================
+ 
+ -- ============================================================
+diff --git a/java_bridge/types.c b/java_bridge/types.c
+index 28c111f..0c3ac91 100644
+--- a/java_bridge/types.c
++++ b/java_bridge/types.c
+@@ -62,6 +62,9 @@ void new_jobject(lua_State *L, jobject object)
+   }
+   user_data = lua_newuserdata(L, sizeof(jobject));
+   *user_data = object;
++  /* TODO jthread, jarray, etc could be separate, but I don't see any
++	 advantage
++  */
+   lua_getfield(L, LUA_REGISTRYINDEX, "jobject");
+   lua_setmetatable(L, -2);
+ }
+diff --git a/lua_java.c b/lua_java.c
+index 549b516..4ebabd9 100644
+--- a/lua_java.c
++++ b/lua_java.c
+@@ -60,6 +60,21 @@ void lj_check_jvmti_error(lua_State *L)
+   (void)lua_interface_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
+ }
+ 
++void lj_check_jvmti_error2(lua_State *L, jvmtiEnv *jvmti)
++{
++  char *errmsg = "<Unknown Error>";
++  if(lj_err == JVMTI_ERROR_NONE)
++    return;
++
++  (*jvmti)->GetErrorName(jvmti, lj_err, &errmsg);
++  /* we never Deallocate() the errmsg returned from JVMTI */
++
++  if (IsDebuggerPresent())
++    DebugBreak();
++
++  (void)lua_interface_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
++}
++
+ jobject get_current_java_thread()
+ {
+   JNIEnv *jni = current_jni();
+@@ -751,7 +766,6 @@ static int lj_set_array_element(lua_State *L)
+ 	(*jni)->SetObjectArrayElement(jni, array, index, val.l);
+ 	EXCEPTION_CHECK(jni);
+ 	break;
+-	/* TODO rest */
+   case 'Z':
+ 	luaL_checktype(L, val_num, LUA_TBOOLEAN);
+ 	val.z = lua_toboolean(L, val_num);
+diff --git a/lua_java/lj_class.c b/lua_java/lj_class.c
+index ab2ab86..c1254f2 100644
+--- a/lua_java/lj_class.c
++++ b/lua_java/lj_class.c
+@@ -111,10 +111,34 @@ static int lj_get_source_filename(lua_State *L)
+   return 1;
+ }
+ 
++static int lj_get_loaded_classes(lua_State *L)
++{
++  JNIEnv *jni = current_jni();
++  int i;
++  jint class_count;
++  jclass *classes;
++
++  lj_err = (*current_jvmti())->GetLoadedClasses(current_jvmti(), &class_count, &classes);
++  lj_check_jvmti_error(L);
++
++  lua_newtable(L);
++
++  for (i = 0; i < class_count; ++i)
++  {
++	new_jobject(L, (*jni)->NewGlobalRef(jni, classes[i]));
++	lua_rawseti(L, -2, i+1);
++  }
++
++  free_jvmti_refs(current_jvmti(), classes, (void *)-1);
++
++  return 1;
++}
++
+ void lj_class_register(lua_State *L)
+ {
+   lua_register(L, "lj_find_class",                 lj_find_class);
+   lua_register(L, "lj_get_class_fields",           lj_get_class_fields);
+   lua_register(L, "lj_get_class_methods",          lj_get_class_methods);
+   lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
++  lua_register(L, "lj_get_loaded_classes",         lj_get_loaded_classes);
+ }
+diff --git a/lua_java/lj_method.c b/lua_java/lj_method.c
+index 6e505ec..6399434 100644
+--- a/lua_java/lj_method.c
++++ b/lua_java/lj_method.c
+@@ -115,6 +115,7 @@ static int lj_get_line_number_table(lua_State *L)
+       lj_err == JVMTI_ERROR_ABSENT_INFORMATION) {
+     lua_pushnil(L);
+   } else {
++    lj_check_jvmti_error(L);
+     lua_newtable(L);
+     for (i = 0; i < line_count; ++i)
+     {
+@@ -125,7 +126,6 @@ static int lj_get_line_number_table(lua_State *L)
+       lua_setfield(L, -2, "line_num");
+       lua_rawseti(L, -2, i+1);
+     }
+-    lj_check_jvmti_error(L);
+ 
+ 	free_jvmti_refs(current_jvmti(), lines, (void *)-1);
+   }
+@@ -229,6 +229,24 @@ static int lj_get_method_modifiers_table(lua_State *L)
+   return 1;
+ }
+ 
++static int lj_get_method_location(lua_State *L)
++{
++  jmethodID method_id;
++  jlocation start;
++  jlocation end;
++
++  method_id = *(jmethodID *) luaL_checkudata(L, 1, "jmethod_id");
++  lua_pop(L, 1);
++
++  lj_err = (*current_jvmti())->GetMethodLocation(current_jvmti(), method_id, &start, &end);
++  lj_check_jvmti_error(L);
++
++  lua_pushinteger(L, start);
++  lua_pushinteger(L, end);
++
++  return 2;
++}
++
+ void lj_method_register(lua_State *L)
+ {
+   lua_register(L, "lj_get_method_id",              lj_get_method_id);
+@@ -238,4 +256,5 @@ void lj_method_register(lua_State *L)
+   lua_register(L, "lj_get_method_declaring_class", lj_get_method_declaring_class);
+   lua_register(L, "lj_get_method_modifiers",       lj_get_method_modifiers);
+   lua_register(L, "lj_get_method_modifiers_table", lj_get_method_modifiers_table);
++  lua_register(L, "lj_get_method_location",        lj_get_method_location);
+ }
+diff --git a/lua_java/lj_stack_frame.c b/lua_java/lj_stack_frame.c
+index e48fc30..c9b937a 100644
+--- a/lua_java/lj_stack_frame.c
++++ b/lua_java/lj_stack_frame.c
+@@ -44,8 +44,21 @@ static int lj_get_stack_frame(lua_State *L)
+   return 1;
+ }
+ 
++static int lj_notify_frame_pop(lua_State *L)
++{
++  jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
++  int depth = luaL_checkint(L, 2);
++  lua_pop(L, 2);
++
++  lj_err = (*current_jvmti())->NotifyFramePop(current_jvmti(), thread, depth);
++  lj_check_jvmti_error(L);
++
++  return 0;
++}
++
+ void lj_stack_frame_register(lua_State *L)
+ {
+   lua_register(L, "lj_get_frame_count",            lj_get_frame_count);
+   lua_register(L, "lj_get_stack_frame",            lj_get_stack_frame);
++  lua_register(L, "lj_notify_frame_pop",           lj_notify_frame_pop);
+ }
+diff --git a/lua_jvmti_event.c b/lua_jvmti_event.c
+index 89715f9..a5e3c2f 100644
+--- a/lua_jvmti_event.c
++++ b/lua_jvmti_event.c
+@@ -18,6 +18,8 @@ extern lua_State *lj_L;
+ 
+ void lj_check_jvmti_error(lua_State *L);
+ 
++void lj_check_jvmti_error2(lua_State *L, jvmtiEnv *jvmti);
++
+ extern jthread lj_current_thread;
+ 
+ /* function references for callback functions */
+@@ -28,6 +30,7 @@ static struct {
+   int cb_single_step_ref;
+   int cb_exception_throw_ref;
+   int cb_exception_catch_ref;
++  int cb_frame_pop_ref;
+ } lj_jvmti_callbacks;
+ 
+ void lj_init_jvmti_event()
+@@ -40,6 +43,7 @@ void lj_init_jvmti_event()
+ 
+   lj_jvmti_callbacks.cb_exception_throw_ref = LUA_NOREF;
+   lj_jvmti_callbacks.cb_exception_catch_ref = LUA_NOREF;
++  lj_jvmti_callbacks.cb_frame_pop_ref = LUA_NOREF;
+ }
+ 
+ static void disable_events_before_callback_handling(lua_State *L)
+@@ -125,6 +129,9 @@ static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
+ {
+   int ref = lj_jvmti_callbacks.cb_method_exit_ref;
+   lua_State *L;
++  char *method_name = NULL;
++  char *sig = NULL;
++  size_t siglen;
+ 
+   if (ref == LUA_NOREF)
+     return;
+@@ -141,10 +148,44 @@ static void JNICALL cb_method_exit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread,
+   new_jobject(L, thread);
+   new_jmethod_id(L, method_id);
+   lua_pushboolean(L, was_popped_by_exception);
++  //
++  lj_err = (*jvmti)->GetMethodName(jvmti, method_id, &method_name, &sig, NULL);
++  siglen = strlen(sig);
++  lj_check_jvmti_error2(L, jvmti);
++  printf("Returning an object: %s %s\n", method_name, sig);
++  //new_string(L, jni, "abc");
++  //lua_pushstring(L, "abc");
++  switch (sig[siglen-1])
++  {
++  case ';':
++	new_jobject(L, return_value.l);
++	break;
++  default:
++	lua_pushstring(L, "ABC");
++	break;
++  /* case 'Z': */
++  /* 	break; */
++  /* case 'B': */
++  /* 	break; */
++  /* case 'C': */
++  /* 	break; */
++  /* case 'S': */
++  /* 	break; */
++  /* case 'I': */
++  /* 	break; */
++  /* case 'J': */
++  /* 	break; */
++  /* case 'F': */
++  /* 	break; */
++  /* case 'D': */
++  /* 	break; */
++  }
++
+   /* TODO return_value must be passed to Lua */
+-  lua_pcall(L, 3, 1, -5);
++  lua_pcall(L, 4, 1, -6);
+   lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
+ 
++  free_jvmti_refs(current_jvmti(), method_name, sig, (void *)-1);
+   enable_events_after_callback_handling(lj_L);
+ }
+ 
+@@ -206,6 +247,33 @@ static void JNICALL cb_exception_throw(jvmtiEnv *jvmti, JNIEnv *jni, jthread thr
+   enable_events_after_callback_handling(lj_L);
+ }
+ 
++static void JNICALL cb_frame_pop(jvmtiEnv *jvmti, JNIEnv* jni, jthread thread, jmethodID method_id,
++								 jboolean was_popped_by_exception)
++{
++  int ref = lj_jvmti_callbacks.cb_frame_pop_ref;
++  lua_State *L;
++
++  if (ref == LUA_NOREF)
++	return;
++
++  L = lua_newthread(lj_L);
++
++  lj_current_thread = (*jni)->NewGlobalRef(jni, thread);
++  assert(lj_current_thread);
++
++  disable_events_before_callback_handling(lj_L);
++
++  lua_pushcfunction(L, lua_print_traceback);
++  lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
++  new_jobject(L, thread);
++  new_jmethod_id(L, method_id);
++  lua_pushboolean(L, was_popped_by_exception);
++  lua_pcall(L, 3, 0, -5);
++  lua_pop(lj_L, 1); /* the new lua_State, we're done with it */
++  
++  enable_events_after_callback_handling(lj_L);
++}
++
+ static void get_jvmti_callback_pointers(const char *callback,
+ 										void ***jvmti_function_ptr_ptr,
+ 										void **lj_function_ptr, 
+@@ -257,6 +325,12 @@ static void get_jvmti_callback_pointers(const char *callback,
+ 	*lj_function_ptr = cb_exception_throw;
+ 	*ref_ptr = &lj_jvmti_callbacks.cb_exception_throw_ref;
+   }
++  else if (!strcmp(callback, "frame_pop"))
++  {
++	*jvmti_function_ptr_ptr = (void **)&evCbs->FramePop;
++	*lj_function_ptr = cb_frame_pop;
++	*ref_ptr = &lj_jvmti_callbacks.cb_frame_pop_ref;
++  }
+ }
+ 
+ int lj_set_jvmti_callback(lua_State *L)
+@@ -288,6 +362,8 @@ int lj_set_jvmti_callback(lua_State *L)
+ 	lj_err = EV_ENABLET(METHOD_EXIT, get_current_java_thread());
+   else if (!strcmp(callback, "exception_throw"))
+ 	lj_err = EV_ENABLET(EXCEPTION, get_current_java_thread());
++  else if (!strcmp(callback, "frame_pop"))
++	lj_err = EV_ENABLET(FRAME_POP, get_current_java_thread());
+   lj_check_jvmti_error(L);
+ 
+   get_jvmti_callback_pointers(callback, &jvmti_callback_ptr, &lj_callback_ptr, &ref_ptr);
+diff --git a/planning.org b/planning.org
+new file mode 100644
+index 0000000..8fd4619
+--- /dev/null
++++ b/planning.org
+@@ -0,0 +1,6 @@
++* Stuff to do when time allows
++** Implement remaining methods in =lj_force_early_return.c=
++   + MUST have tests
++** Implement more comprehensive coercion in =Frame:force_return()=
++   + It should be re-usable
++
+diff --git a/test/tsc/EarlyReturnTest.java b/test/tsc/EarlyReturnTest.java
+index 44fea11..0efe190 100644
+--- a/test/tsc/EarlyReturnTest.java
++++ b/test/tsc/EarlyReturnTest.java
+@@ -16,6 +16,7 @@ public class EarlyReturnTest {
+ 	 * The test method to be called
+ 	 */
+ 	public void test() {
++		value = "failed";
+ 		value = setValue();
+ 	}
+ }
+diff --git a/test/tsc/early_return.lua b/test/tsc/early_return.lua
+index c045c5d..1ca2156 100644
+--- a/test/tsc/early_return.lua
++++ b/test/tsc/early_return.lua
+@@ -22,6 +22,11 @@ describe("Frame:force_return()", function ()
+ 	   local testObj = EarlyReturnTest.new()
+ 	   assert_equal("initial value", testObj.value.toString())
+ 	   bp("EarlyReturnTest.test()V").handler = function (bp, thread)
++		  function setParam1(self, param1)
++			 self.param1 = param1
++		  end
++		  myObject:setParam1(x) -- =>
++		  myObject.setParam1(myObject, x)
+ 		  debug_thread.frames[1]:force_return()
+ 											   end
+ 	   testObj.test()
+diff --git a/yt.c b/yt.c
+index 09b5d26..a529d46 100644
+--- a/yt.c
++++ b/yt.c
+@@ -122,9 +122,12 @@ Agent_OnLoad(JavaVM *jvm, char *options, void *reserved)
+   evCbs->VMInit = cbVMInit;
+   evCbs->VMDeath = cbVMDeath;
+   caps.can_generate_breakpoint_events = 1;
++  /*
+   caps.can_generate_method_entry_events = 1;
+   caps.can_generate_method_exit_events = 1;
+   caps.can_generate_exception_events = 1;
++  caps.can_generate_frame_pop_events = 1;
++  */
+ /*   caps.can_tag_objects = 1; */
+   caps.can_get_source_file_name = 1;
+   caps.can_get_line_numbers = 1;
+diff --git a/yt.el b/yt.el
+index 32f777b..a7d378c 100644
+--- a/yt.el
++++ b/yt.el
+@@ -57,6 +57,7 @@
+     (if (semantic-tag-of-class-p tag 'function)
+ 	(let* ((method (semantic-tag-name tag))
+ 	       (class (subst-char-in-string ?. ?/ (current-java-class)))
++		   ;; TODO doesn't work for constructors, (semantic-tag-type) returns nil
+ 	       (rettype (encode-java-type (semantic-tag-type tag)))
+ 	       (args (mapconcat (lambda (tag) (encode-java-type (semantic-tag-type tag)))
+ 				(semantic-tag-function-arguments tag) ""))
