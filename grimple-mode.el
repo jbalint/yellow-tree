@@ -47,7 +47,7 @@
   :group 'grimple)
 
 (setq grimple-soot-jar
-	  "/home/jbalint/Downloads/soot-2.5.0.jar")
+	  "/home/jbalint/sw/java-sw/soot-2.5.0.jar")
 
 (setq grimple-soot-classpath nil)
 	  ;;'("/home/jbalint/sw/stardog-2.1.3/expand"))
@@ -66,8 +66,10 @@
 							 `("javap" "-cp" ,(file-name-directory file-name)
 							   ,unqual-classname) " "))
 		 (output (shell-command-to-string command)))
-	(if (string-match "contains\\s-+\\([[:alnum:]\\.]+\\)\\b" output)
-		(match-string 1 output))))
+	(if (string-match "contains\\s-+\\([[:alnum:]\\._]+\\)\\b" output)
+		(match-string 1 output)
+	  (error (concat "Could not determine classname. Output from `javap': "
+					 (substring output 0 100))))))
 
 (defun grimple-rt-jar-path ()
   ""
