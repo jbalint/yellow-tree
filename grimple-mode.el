@@ -62,11 +62,14 @@
 (defun grimple-classname-of-file (file-name)
   "Find the name of the class contained in the given file"
   (let* ((unqual-classname (file-name-base file-name))
-		 (command (mapconcat 'identity
-							 `("javap" "-cp" ,(file-name-directory file-name)
-							   ,unqual-classname) " "))
-		 (output (shell-command-to-string command)))
-	(if (string-match "contains\\s-+\\([[:alnum:]\\._]+\\)\\b" output)
+		 (command
+		  ;; $ -> \$ to prevent var replace on inner classes
+		  (replace-regexp-in-string "\\$" "\\\\$"
+									(mapconcat 'identity
+											   `("javap" "-cp" ,(file-name-directory file-name)
+												 ,unqual-classname) " ")))
+		 (output (shell-command-to-string  command)))
+	(if (string-match "contains\\s-+\\([[:alnum:]$\\._]+\\)\\b" output)
 		(match-string 1 output)
 	  (error (concat "Could not determine classname. Output from `javap': "
 					 (substring output 0 100))))))
