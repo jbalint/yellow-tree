@@ -1,1 +1,6 @@
 .sass-cache
+*.o
+.emacs.desktop
+libyt.so*
+Lua_Java.html
+*.class
