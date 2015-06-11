@@ -51,6 +51,8 @@ function jthread:handle_events()
 		 elseif m2 then
 			dbgio:print(m2)
 		 end
+	  else
+         error("Bad event type: " .. event.type)
 	  end
    end
 end

@@ -152,7 +152,7 @@ function jclass:find_methods(search_name)
 end
 
 -- ============================================================
--- search up the class hierarchy for the first field called `name'
+-- search up the class hierarchy for the first field called `search_name'
 function jclass:find_field(search_name)
    local superclass_method_id_raw = lj_get_method_id(lj_find_class("java/lang/Class"),
 													 "getSuperclass", "", "Ljava/lang/Class;")
