@@ -120,7 +120,16 @@ end
 function jclass.find(class_name)
    local class_raw = lj_find_class(class_name)
    if class_raw == nil then
-	  return nil
+	  -- load ALL classes and check (can force a reload by setting all_classes_raw=nil)
+	  if jclass.all_classes_raw == nil then
+		 jclass.all_classes_raw = lj_get_loaded_classes()
+	  end
+	  -- (not sure how cleanly this plays with inner classes)
+	  -- this table uses internal names as index
+	  class_raw = jclass.all_classes_raw["L" .. class_name:gsub("%.", "/") .. ";"]
+	  if class_raw == nil then
+		 return nil
+	  end
    end
    return jclass.create(class_raw)
 end
