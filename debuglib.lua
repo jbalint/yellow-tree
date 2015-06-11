@@ -233,10 +233,10 @@ function bp(method, line_num)
       if not b.method_id then
          error("Cannot find method to set breakpoint")
       end
-   elseif type(method) == "userdata" then
+   elseif type(method) == "table" and method.classname == "jmethod_id" then
       b.method_id = method
    else
-      error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a method_id object")
+      error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a jmethod_id object")
    end
 
    b.location = method_location_for_line_num(b.method_id, b.line_num)
