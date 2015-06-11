@@ -29,9 +29,6 @@ jthread lj_current_thread;
 /* needed to have a lua state at jvmti callback */
 lua_State *lj_L;
 
-/* marker where NULL is used as a jthread param for current thread */
-#define NULL_JTHREAD NULL
-
 JNIEnv *current_jni()
 {
   JNIEnv *jni;

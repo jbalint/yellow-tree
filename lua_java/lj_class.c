@@ -111,10 +111,44 @@ static int lj_get_source_filename(lua_State *L)
   return 1;
 }
 
+static int lj_get_loaded_classes(lua_State *L)
+{
+  JNIEnv *jni = current_jni();
+  char *class_sig;
+  jclass *classes;
+  jint class_count;
+  int i;
+
+  lj_err = (*current_jvmti())->GetLoadedClasses(current_jvmti(), &class_count, &classes);
+  lj_check_jvmti_error(L);
+
+  fprintf(stderr, "lj_get_loaded_classes: (Loading %d classes)\n", class_count);
+
+  lua_createtable(L, 0, class_count);
+
+  /* create a table indexed with *internal* class name */
+  for (i = 0; i < class_count; ++i)
+  {
+	lj_err = (*current_jvmti())->GetClassSignature(current_jvmti(), classes[i], &class_sig, NULL);
+	lj_check_jvmti_error(L);
+	lua_pushstring(L, class_sig);
+    new_jobject(L, (*jni)->NewGlobalRef(jni, classes[i]));
+	/* newtable[class_sig] = classes[i] */
+    lua_rawset(L, -3);
+	free_jvmti_refs(current_jvmti(), class_sig, (void *) -1);
+  }
+
+  if (classes)
+	free_jvmti_refs(current_jvmti(), classes, (void *) -1);
+
+  return 1;
+}
+
 void lj_class_register(lua_State *L)
 {
   lua_register(L, "lj_find_class",                 lj_find_class);
   lua_register(L, "lj_get_class_fields",           lj_get_class_fields);
   lua_register(L, "lj_get_class_methods",          lj_get_class_methods);
   lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
+  lua_register(L, "lj_get_loaded_classes",         lj_get_loaded_classes);
 }
