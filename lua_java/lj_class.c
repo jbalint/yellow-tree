@@ -5,6 +5,8 @@
 #include "java_bridge.h"
 #include "lj_internal.h"
 
+#include <string.h>
+
 /* Lua wrappers for class operations */
 
 static int lj_find_class(lua_State *L)
@@ -133,6 +135,7 @@ static int lj_get_loaded_classes(lua_State *L)
 	lj_check_jvmti_error(L);
 	lua_pushstring(L, class_sig);
     new_jobject(L, (*jni)->NewGlobalRef(jni, classes[i]));
+	EXCEPTION_CHECK(jni);
 	/* newtable[class_sig] = classes[i] */
     lua_rawset(L, -3);
 	free_jvmti_refs(current_jvmti(), class_sig, (void *) -1);
@@ -144,6 +147,61 @@ static int lj_get_loaded_classes(lua_State *L)
   return 1;
 }
 
+/* This value is used to tag all objects visited. It is then
+   incremented for the next iteration. We need to tag all items and
+   then retrieve them. There is no reason/method to clear all tags so
+   we increment the number so it's different next time. It's
+   *possible* that if you used this method a (max jlong) times that
+   there may be objects leftover with an old tag.
+ */
+static jlong class_instances_search_tag = 1000;
+
+static jint heap_iter_tag_item(jlong class_tag, jlong size, jlong* tag_ptr, jint length, void* user_data) {
+  *tag_ptr = class_instances_search_tag;
+  return 0;
+}
+
+static int lj_get_class_instances(lua_State *L) {
+  jclass class;
+  jvmtiHeapCallbacks callbacks;
+  JNIEnv *jni = current_jni();
+  jobject *obj_output;
+  jlong *tag_output;
+  jint output_count;
+  int i;
+
+  class = *(jclass *)luaL_checkudata(L, 1, "jobject");
+  lua_pop(L, 1);
+
+  /* get a new tag for this search */
+  class_instances_search_tag++;
+
+  memset(&callbacks, 0, sizeof(jvmtiHeapCallbacks));
+  callbacks.heap_iteration_callback = &heap_iter_tag_item;
+
+  lj_err = (*current_jvmti())->IterateThroughHeap(current_jvmti(), 0, class, &callbacks, L);
+  lj_check_jvmti_error(L);
+
+  /* get all tagged objects */
+  lj_err = (*current_jvmti())->GetObjectsWithTags(current_jvmti(), 1, &class_instances_search_tag, &output_count, &obj_output, &tag_output);
+  lj_check_jvmti_error(L);
+
+  fprintf(stderr, "output_count=%d\n", output_count);
+
+  /* add it to the result */
+  lua_createtable(L, output_count, 0);
+  for (i = 0; i < output_count; ++i) {
+	new_jobject(L, (*jni)->NewGlobalRef(jni, obj_output[i]));
+	EXCEPTION_CHECK(jni);
+	lua_rawseti(L, -2, i + 1);
+  }
+
+  if (obj_output)
+	free_jvmti_refs(current_jvmti(), obj_output, tag_output, (void *)-1);
+
+  return 1;
+}
+
 void lj_class_register(lua_State *L)
 {
   lua_register(L, "lj_find_class",                 lj_find_class);
@@ -151,4 +209,5 @@ void lj_class_register(lua_State *L)
   lua_register(L, "lj_get_class_methods",          lj_get_class_methods);
   lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
   lua_register(L, "lj_get_loaded_classes",         lj_get_loaded_classes);
+  lua_register(L, "lj_get_class_instances",        lj_get_class_instances);
 }

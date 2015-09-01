@@ -213,28 +213,6 @@ diff --git a/lua_java.c b/lua_java.c
 index 549b516..4ebabd9 100644
 --- a/lua_java.c
 +++ b/lua_java.c
-@@ -60,6 +60,21 @@ void lj_check_jvmti_error(lua_State *L)
-   (void)lua_interface_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
- }
- 
-+void lj_check_jvmti_error2(lua_State *L, jvmtiEnv *jvmti)
-+{
-+  char *errmsg = "<Unknown Error>";
-+  if(lj_err == JVMTI_ERROR_NONE)
-+    return;
-+
-+  (*jvmti)->GetErrorName(jvmti, lj_err, &errmsg);
-+  /* we never Deallocate() the errmsg returned from JVMTI */
-+
-+  if (IsDebuggerPresent())
-+    DebugBreak();
-+
-+  (void)lua_interface_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
-+}
-+
- jobject get_current_java_thread()
- {
-   JNIEnv *jni = current_jni();
 @@ -751,7 +766,6 @@ static int lj_set_array_element(lua_State *L)
  	(*jni)->SetObjectArrayElement(jni, array, index, val.l);
  	EXCEPTION_CHECK(jni);
@@ -243,45 +221,6 @@ index 549b516..4ebabd9 100644
    case 'Z':
  	luaL_checktype(L, val_num, LUA_TBOOLEAN);
  	val.z = lua_toboolean(L, val_num);
-diff --git a/lua_java/lj_class.c b/lua_java/lj_class.c
-index ab2ab86..c1254f2 100644
---- a/lua_java/lj_class.c
-+++ b/lua_java/lj_class.c
-@@ -111,10 +111,34 @@ static int lj_get_source_filename(lua_State *L)
-   return 1;
- }
- 
-+static int lj_get_loaded_classes(lua_State *L)
-+{
-+  JNIEnv *jni = current_jni();
-+  int i;
-+  jint class_count;
-+  jclass *classes;
-+
-+  lj_err = (*current_jvmti())->GetLoadedClasses(current_jvmti(), &class_count, &classes);
-+  lj_check_jvmti_error(L);
-+
-+  lua_newtable(L);
-+
-+  for (i = 0; i < class_count; ++i)
-+  {
-+	new_jobject(L, (*jni)->NewGlobalRef(jni, classes[i]));
-+	lua_rawseti(L, -2, i+1);
-+  }
-+
-+  free_jvmti_refs(current_jvmti(), classes, (void *)-1);
-+
-+  return 1;
-+}
-+
- void lj_class_register(lua_State *L)
- {
-   lua_register(L, "lj_find_class",                 lj_find_class);
-   lua_register(L, "lj_get_class_fields",           lj_get_class_fields);
-   lua_register(L, "lj_get_class_methods",          lj_get_class_methods);
-   lua_register(L, "lj_get_source_filename",        lj_get_source_filename);
-+  lua_register(L, "lj_get_loaded_classes",         lj_get_loaded_classes);
- }
 diff --git a/lua_java/lj_method.c b/lua_java/lj_method.c
 index 6e505ec..6399434 100644
 --- a/lua_java/lj_method.c
@@ -363,15 +302,6 @@ diff --git a/lua_jvmti_event.c b/lua_jvmti_event.c
 index 89715f9..a5e3c2f 100644
 --- a/lua_jvmti_event.c
 +++ b/lua_jvmti_event.c
-@@ -18,6 +18,8 @@ extern lua_State *lj_L;
- 
- void lj_check_jvmti_error(lua_State *L);
- 
-+void lj_check_jvmti_error2(lua_State *L, jvmtiEnv *jvmti);
-+
- extern jthread lj_current_thread;
- 
- /* function references for callback functions */
 @@ -28,6 +30,7 @@ static struct {
    int cb_single_step_ref;
    int cb_exception_throw_ref;
@@ -405,7 +335,7 @@ index 89715f9..a5e3c2f 100644
 +  //
 +  lj_err = (*jvmti)->GetMethodName(jvmti, method_id, &method_name, &sig, NULL);
 +  siglen = strlen(sig);
-+  lj_check_jvmti_error2(L, jvmti);
++  lj_check_jvmti_error(L);
 +  printf("Returning an object: %s %s\n", method_name, sig);
 +  //new_string(L, jni, "abc");
 +  //lua_pushstring(L, "abc");

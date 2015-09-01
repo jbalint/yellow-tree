@@ -125,7 +125,7 @@ Agent_OnLoad(JavaVM *jvm, char *options, void *reserved)
   caps.can_generate_method_entry_events = 1;
   caps.can_generate_method_exit_events = 1;
   caps.can_generate_exception_events = 1;
-/*   caps.can_tag_objects = 1; */
+  caps.can_tag_objects = 1;
   caps.can_get_source_file_name = 1;
   caps.can_get_line_numbers = 1;
   caps.can_access_local_variables = 1;

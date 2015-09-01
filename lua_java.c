@@ -42,7 +42,8 @@ jvmtiEnv *current_jvmti()
   return lj_jvmti;
 }
 
-void lj_check_jvmti_error(lua_State *L)
+/* TODO: should wrap this in a macro to better report error location */
+void lj_check_jvmti_error_internal(lua_State *L, const char *file, int line, const char *func)
 {
   char *errmsg = "<Unknown Error>";
   if(lj_err == JVMTI_ERROR_NONE)
@@ -54,7 +55,7 @@ void lj_check_jvmti_error(lua_State *L)
   if (IsDebuggerPresent())
     DebugBreak();
 
-  (void)lua_interface_error(L, "Error %d from JVMTI: %s", lj_err, errmsg);
+  (void) lua_interface_error(L, "[%s:%d:%s] Error %d from JVMTI: %s", file, line, func, lj_err, errmsg);
 }
 
 jobject get_current_java_thread()

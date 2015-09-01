@@ -16,8 +16,6 @@
 /* from lua_java.c */
 extern lua_State *lj_L;
 
-void lj_check_jvmti_error(lua_State *L);
-
 extern jthread lj_current_thread;
 
 /* function references for callback functions */

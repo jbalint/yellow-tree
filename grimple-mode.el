@@ -47,7 +47,8 @@
   :group 'grimple)
 
 (setq grimple-soot-jar
-	  "/home/jbalint/sw/java-sw/soot-2.5.0.jar")
+;;	  "/home/jbalint/sw/java-sw/soot-2.5.0.jar")
+"/home/jbalint/sw/java-sw/soot-trunk-2015-04-19.jar")
 
 (setq grimple-soot-classpath nil)
 	  ;;'("/home/jbalint/sw/stardog-2.1.3/expand"))

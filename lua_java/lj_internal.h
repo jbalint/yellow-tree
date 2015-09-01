@@ -7,7 +7,8 @@ jobject get_current_java_thread();
 jvmtiEnv *current_jvmti();
 JNIEnv *current_jni();
 
-void lj_check_jvmti_error(lua_State *L);
+void lj_check_jvmti_error_internal(lua_State *, const char *, int, const char *);
+#define lj_check_jvmti_error(L) lj_check_jvmti_error_internal(L, __FILE__, __LINE__, __FUNCTION__)
 
 extern jvmtiError lj_err;
 

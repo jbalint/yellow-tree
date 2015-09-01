@@ -1,0 +1,41 @@
+#+TITLE: Lua/Java
+
+* Description
+
+  Lua/Java is the low-level library that interacts with the JVM and
+  exposes a Lua API.
+
+* Notes
+  + =GlobalRef(jobject)= indicates that we return a global reference
+  + Most functions may return =nil=
+  + All functions return "raw" (pointer) jobjects. They must be
+    wrapped by Lua OO wrappers
+
+* Internal Utilities
+
+** Environment References
+   + =current_jni()= provides access to the appropriate JNI
+     environment via =AttachCurrentThread()=
+   + =current_jvmti()= provides access to the JVM TI environment for
+     the agent.
+   + =get_current_java_thread()= provides access to the =jthread=
+
+** Others
+   + =lj_check_jvmti_error()= provides an assertion-like interface to
+     check JVM TI return values.
+   + =lj_print_message()= provides a printf-style interface to stdout.
+
+* External API by Module
+
+** LJ Class
+
+   | Function                                                | Notes                                           |
+   |---------------------------------------------------------+-------------------------------------------------|
+   | *=jobject lj_find_class(string class_name)=*            | Uses =FindClass()= which is quite basi          |
+   | *=[jfield_id] lj_get_class_fields(jobject class)=*      |                                                 |
+   | *=[jmethod_id] lj_get_class_methods(jobject class)=*    |                                                 |
+   | *=string lj_get_source_filename(jobject class)=*        |                                                 |
+   | *=[sig => GlobalRef(jobject)] lj_get_loaded_classes()=* | sig is internal name, e.g. =Ljava/lang/String;= |
+
+** LJ Field
+

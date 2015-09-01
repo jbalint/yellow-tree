@@ -177,6 +177,17 @@ function jclass:find_field(search_name)
    return nil
 end
 
+-- ============================================================
+-- Find all instances of the current class
+function jclass:find_instances()
+   local instances = lj_get_class_instances(self.object_raw)
+   -- transform the raw instances to jobject instances
+   for i = 1, #instances do
+	  instances[i] = jobject.create(instances[i])
+   end
+   return instances
+end
+
 -- bootstrap the lowest-level class
 jclass.java_lang_Class_instance = {}
 jclass.java_lang_Class_instance.object_raw = lj_new_global_ref(lj_find_class("java/lang/Class"))
