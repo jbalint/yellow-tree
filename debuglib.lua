@@ -618,4 +618,7 @@ end
 
 init_locals_environment()
 init_jvmti_callbacks()
+Class = java.lang.Class
+Thread = java.lang.Thread
+System = java.lang.System
 print("debuglib.lua - loaded with " .. _VERSION)

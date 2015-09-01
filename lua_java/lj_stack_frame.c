@@ -19,7 +19,7 @@ static int lj_get_stack_frame(lua_State *L)
   jvmtiFrameInfo fi;
   jint count = 0;
   jobject thread = *(jobject *)luaL_checkudata(L, 1, "jobject");
-  int frame_num = luaL_checkint(L, 2);
+  int frame_num = luaL_checkinteger(L, 2);
   lua_pop(L, 2);
 
   /* get stack frame info */

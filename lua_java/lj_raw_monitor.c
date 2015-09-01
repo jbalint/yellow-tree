@@ -68,7 +68,7 @@ static int lj_raw_monitor_wait(lua_State *L)
   jlong wait;
 
   monitor = *(jrawMonitorID *)luaL_checkudata(L, 1, "jmonitor");
-  wait = luaL_checkint(L, 2);
+  wait = luaL_checkinteger(L, 2);
   lua_pop(L, 2);
 
   lj_err = (*current_jvmti())->RawMonitorWait(current_jvmti(), monitor, wait);

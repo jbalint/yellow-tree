@@ -24,7 +24,7 @@ static int lj_force_early_return_int(lua_State *L)
   if (lua_isboolean(L, 2))
 	retval = lua_toboolean(L, 2);
   else
-	retval = luaL_checkint(L, 2);
+	retval = luaL_checkinteger(L, 2);
   lj_err = (*current_jvmti())->ForceEarlyReturnInt(current_jvmti(), thread, retval);
   lj_check_jvmti_error(L);
   lua_pop(L, 2);
