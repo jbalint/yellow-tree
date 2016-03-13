@@ -1,0 +1,7 @@
+
+
+#+BEGIN_SRC plantuml :file bp_example.png
+  JVM_thread -> JVM_thread: running for a while
+  JVM_thread -> cb_breakpoint: Hits BP
+  cb_breakpoint -> LUA_cb_breakpoint
+#+END_SRC
