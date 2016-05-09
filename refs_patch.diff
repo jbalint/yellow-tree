@@ -1,0 +1,47 @@
+diff --git a/lua_java/lj_class.c b/lua_java/lj_class.c
+index 800ea49..f60e468 100644
+--- a/lua_java/lj_class.c
++++ b/lua_java/lj_class.c
+@@ -124,6 +124,9 @@ static int lj_get_loaded_classes(lua_State *L)
+   lj_err = (*current_jvmti())->GetLoadedClasses(current_jvmti(), &class_count, &classes);
+   lj_check_jvmti_error(L);
+ 
++  // TODO how can we realistically manage this number
++  (*jni)->EnsureLocalCapacity(jni, 2000);
++
+   fprintf(stderr, "lj_get_loaded_classes: (Loading %d classes)\n", class_count);
+ 
+   lua_createtable(L, 0, class_count);
+@@ -139,10 +142,10 @@ static int lj_get_loaded_classes(lua_State *L)
+ 	/* newtable[class_sig] = classes[i] */
+     lua_rawset(L, -3);
+ 	free_jvmti_refs(current_jvmti(), class_sig, (void *) -1);
++	(*jni)->DeleteLocalRef(jni, classes[i]);
+   }
+ 
+-  if (classes)
+-	free_jvmti_refs(current_jvmti(), classes, (void *) -1);
++  free_jvmti_refs(current_jvmti(), classes, (void *) -1);
+ 
+   return 1;
+ }
+diff --git a/yt.c b/yt.c
+index 048e99f..720104b 100644
+--- a/yt.c
++++ b/yt.c
+@@ -52,6 +52,7 @@ check_jvmti_error(jvmtiEnv *jvmti, jvmtiError jerr)
+ 
+ static void JNICALL command_loop_thread(jvmtiEnv *jvmti, JNIEnv *jni, void *arg)
+ {
++  (*jni)->EnsureLocalCapacity(jni, 2000);
+   lua_start_cmd(agent_options);
+ }
+ 
+@@ -90,6 +91,7 @@ cbVMInit(jvmtiEnv *jvmti, JNIEnv *jni, jthread thread)
+   								  NULL, JVMTI_THREAD_NORM_PRIORITY);
+   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
+ 
++
+   /* wait for debugger to begin execution */
+   (*Gagent.jvmti)->RawMonitorEnter(Gagent.jvmti, thread_resume_monitor);
+   check_jvmti_error(Gagent.jvmti, Gagent.jerr);
