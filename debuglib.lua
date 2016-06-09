@@ -616,9 +616,20 @@ function dump_internal(o)
    end
 end
 
+-- Import a class by inserting it into the global env with the key given by the class' simple name
+function import(class)
+   if type(class) == "table" and class.classname == "jclass" then
+      _ENV[class.getSimpleName().toString()] = class
+   else
+      error("Not a valid class")
+   end
+end
+
 init_locals_environment()
 init_jvmti_callbacks()
 Class = java.lang.Class
 Thread = java.lang.Thread
 System = java.lang.System
+String = java.lang.String
+File = java.io.File
 print("debuglib.lua - loaded with " .. _VERSION)
