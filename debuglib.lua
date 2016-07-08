@@ -244,6 +244,7 @@ function bp(method, line_num)
       error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a jmethod_id object")
    end
 
+   --b.location = line_num -- TEMP to use raw offset --method_location_for_line_num(b.method_id, b.line_num)
    b.location = method_location_for_line_num(b.method_id, b.line_num)
    if b.location < 0 then
       b.location = 0
@@ -626,6 +627,9 @@ function import(class)
    if type(class) == "table" and class.classname == "jclass" then
       _ENV[class.getSimpleName().toString()] = class
       return class
+   elseif type(class) == "string" then
+      cl = jclass.find(class:gsub("%.", "/"))
+      return import(cl)
    else
       error("Not a valid class")
    end
