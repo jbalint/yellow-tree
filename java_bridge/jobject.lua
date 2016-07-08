@@ -76,6 +76,13 @@ end
 
 -- ============================================================
 function jobject.__eq(o1, o2)
+   if type(o1) ~= type(o2) then
+      return false
+   end
+   if not o1.class or not o2.class then
+      return false
+   end
+
    local o1c, o2c = o1.class.name, o2.class.name
    if o1c ~= o2c then return false end
 
