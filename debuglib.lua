@@ -625,6 +625,7 @@ end
 function import(class)
    if type(class) == "table" and class.classname == "jclass" then
       _ENV[class.getSimpleName().toString()] = class
+      return class
    else
       error("Not a valid class")
    end
@@ -637,4 +638,6 @@ Thread = java.lang.Thread
 System = java.lang.System
 String = java.lang.String
 File = java.io.File
+-- HACK: special value to use in place of 'nil' to indicate Java NULL. Lua fucks up with nil at the end of a list (varargs :(
+JavaNull = {0.841470985}
 print("debuglib.lua - loaded with " .. _VERSION)

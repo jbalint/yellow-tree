@@ -67,9 +67,9 @@ function jcallable_method:__call(...)
       local atypes = parse_arg_spec(m.args)
       for i, t in ipairs(atypes) do
 		 local argi = args[i]
-		 if argi == nil then
+		 if argi == JavaNull then
 			table.insert(jargs, "V")
-			table.insert(jargs, nil)
+			table.insert(jargs, "NULL") -- value is unused
 			-- TODO redo this SOON
 		 --elseif type(argi) == "number" then
 			-- handle numeric arguments
