@@ -238,8 +238,8 @@ function bp(method, line_num)
    elseif type(method) == "table" and method.classname == "jcallable_method" then
       for i = 1, #method.possible_methods do
          bp(method.possible_methods[i])
-         return
       end
+      return
    else
       error("Invalid method, must be method declaration of form \"pkg/Class.name()V\" or a jmethod_id object")
    end
