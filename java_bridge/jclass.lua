@@ -144,16 +144,28 @@ end
 -- search up the class hierarchy for methods called `search_name'
 function jclass:find_methods(search_name)
    local methods = {}
-   local superclass_method_id_raw = lj_get_method_id(lj_find_class("java/lang/Class"),
-													 "getSuperclass", "", "Ljava/lang/Class;")
-   local class = self.object_raw
-   while class do
-      for idx, method_id_raw in pairs(lj_get_class_methods(class)) do
+   local function add_methods (method_list)
+      for idx, method_id_raw in pairs(method_list) do
 		 -- match literal method names or "new" for constructors
 		 local name = lj_get_method_name(method_id_raw).name
 		 if name == search_name or (name == "<init>" and search_name == "new") then
 			table.insert(methods, jmethod_id.create(method_id_raw, self))
+            --print(dump(methods))
 		 end
+      end
+   end
+   local superclass_method_id_raw = lj_get_method_id(lj_find_class("java/lang/Class"),
+													 "getSuperclass", "", "Ljava/lang/Class;")
+   local interfaces_method_id_raw = lj_get_method_id(lj_find_class("java/lang/Class"),
+                                                     "getInterfaces", "", "[Ljava/lang/Class;")
+   local class = self.object_raw
+   while class do
+      add_methods(lj_get_class_methods(class))
+       -- all all interface methods as this is necessary to get default method implementations
+      local interfaces_raw = lj_call_method(class, interfaces_method_id_raw, false, "[", 0)
+      for i = 1, lj_get_array_length(interfaces_raw) do
+         local interface_raw = lj_get_array_element(interfaces_raw, "[Ljava/lang/Class;", i)
+         add_methods(lj_get_class_methods(interface_raw))
       end
       class = lj_call_method(class, superclass_method_id_raw, false, "L", 0)
    end
