@@ -151,7 +151,7 @@ static int lj_get_loaded_classes(lua_State *L)
    incremented for the next iteration. We need to tag all items and
    then retrieve them. There is no reason/method to clear all tags so
    we increment the number so it's different next time. It's
-   *possible* that if you used this method a (max jlong) times that
+   *possible* that if you used this method (max jlong) times that
    there may be objects leftover with an old tag.
  */
 static jlong class_instances_search_tag = 1000;
@@ -185,8 +185,6 @@ static int lj_get_class_instances(lua_State *L) {
   /* get all tagged objects */
   lj_err = (*current_jvmti())->GetObjectsWithTags(current_jvmti(), 1, &class_instances_search_tag, &output_count, &obj_output, &tag_output);
   lj_check_jvmti_error(L);
-
-  fprintf(stderr, "output_count=%d\n", output_count);
 
   /* add it to the result */
   lua_createtable(L, output_count, 0);

@@ -838,6 +838,7 @@ void lj_force_early_return_register(lua_State *L);
 void lj_method_register(lua_State *L);
 void lj_raw_monitor_register(lua_State *L);
 void lj_stack_frame_register(lua_State *L);
+void lj_watch_register(lua_State *L);
 
 void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
 {
@@ -850,6 +851,7 @@ void lj_init(lua_State *L, JavaVM *jvm, jvmtiEnv *jvmti)
   lj_method_register(L);
   lj_raw_monitor_register(L);
   lj_stack_frame_register(L);
+  lj_watch_register(L);
 
   lua_register(L, "lj_set_breakpoint",             lj_set_breakpoint);
   lua_register(L, "lj_clear_breakpoint",           lj_clear_breakpoint);

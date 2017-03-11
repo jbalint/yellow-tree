@@ -12,6 +12,7 @@ LJ_OBJS = lua_java.o lua_jvmti_event.o \
 	lua_java/lj_method.o \
 	lua_java/lj_raw_monitor.o \
 	lua_java/lj_stack_frame.o \
+	lua_java/lj_watch.o \
 	java_bridge/types.o
 
 libyt.so: yt.o lua_interface.o jni_util.o $(LJ_OBJS)
