@@ -110,7 +110,7 @@ function jcallable_method:__call(...)
 			if m.modifiers.static and object.class.name ~= "java.lang.Class" then
 			   object = object.class
 			end
-			return m(object.object_raw, argc, unpack(jargs))
+			return m(object.object_raw, argc, table.unpack(jargs))
 		 end
       end
       --print("more than one possible method, using: " .. method_id.name .. " from " .. lj_toString(method_id.class))
